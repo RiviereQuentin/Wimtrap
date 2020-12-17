@@ -1,0 +1,62 @@
+---
+title: "Wimtrap: User guide"
+author: "Quentin Rivière, Madalina Ciortan, Massimiliano Corso, Nathalie Verbruggen, Matthieu Defrance"
+date: "14 December 2020"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Wimtrap: User guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+# Abstract
+
+**Motivation**: Identification of genes that are regulated by a given transcription factor (TF) is of major importance in biology. Most popular *in silico* methods focusing on the prediction of potential TF target genes are based on the sequence-specific binding TFs affinity. However, the approaches relying on the DNA sequence solelly lead to a high number of false positive binding sites that in most cases cannot be experimentally validated. To overcome this limitation, additional information such as the DNA accessibility (open chromatin) or the sequence conservation across different species are needed.
+
+**Results**: We developed Wimtrap, a user-friendly R package that allows organism- and context-specific predictions of TFs target genes, with special emphasis on plants species. The approach involves beforehand a modeling phase that exploits as a reference experimentally validated TFs binding sites. This step enables to obtain, by machine learning, models that predict TFs binding sites based on context-specific and context-unspecific features defined at the genome scale, complementing the information carried by the DNA-sequence. Models have been built from Arabidopsis thaliana, the plant-model by excellence, extensively studied, about which the necessary data are available. Assessment of the predictive performances of these models showed that they can significantly improve the TFs binding sites (TFBS) predictions, from which the potential targets genes can be inferred. Predictions can be readily obtained in Arabidopsis thaliana, with more than 600 Position Weight Matrices (PWMs) and context-specific data about 20 different organs or growth stages integrated in the package. Depending on the availability of the required data, the models can be transferred to other plants species, such as rice.
+
+# Description of the package
+
+Wimtrap is an R package that allows the prediction of Transcription Factors Binding Sites (TFBS) and therefore identification of a set of genes that might be regulated by a transcription factor (TF) of interest. The package, comprising easy-to-use pre-built models for the plant model Arabidopsis thaliana, aims to offer tools to train and apply predictive models that reduce the false TFBS discovery rate obtained from popular pattern-matching methods. Additional genome-wide features, complementary to the information brought by the DNA sequence, are integrated in decision trees models. Such approach makes possible to take into account the dependence of the TFs binding on the chromatin environment (i.e. histones marks, DNA opening, nucleosomes occupancy), which vary across growth stages, organs, tissues and treatments.
+
+The available functions are fast, flexible and easy to use. They are designed to give a framework that enables to get quickly TFBS models and then to not only apply them but also to analyse them, with plotting and summarizing functionalities that can help to study the TF binding, in the context of a given organism in general or in the one of TF families more specifically. The main task that is therefore requested to the user is therefore limited to data mining. It is indeed necessary to input, from source files in commonly used formats, data about, in the studied organism: on one hand, ChIP-seq data, that can be used to validate and invalidate TFBS identified by pattern-matching analysis; on the other hand, genome wide data, that can be exploited in the models and can be, for instance, the location of genomic structures (promoters, coding sequences,.), the phylogenetic sequence conservation and features related to the chromatin state..
+
+
+# Installation instructions
+
+## 1. Prerequisites for Linux OS
+
+The libraries libcurl, libxml and libssl libraries are necessary to install the package.
+
+On a Debian-based machine (Ubuntu,.), copy/paste the following commands into the terminal:
+
+```{eval = FALSE}
+sudo apt-get install libcurl4-openssl-dev libxml2-dev libssl-dev
+```
+
+## 2. Installing a recent version of R (>= 3.5.0)
+
+To install the wimtrap package, a 3.5.0 version of R or higher is required. You can download the latest version of R from the official CRAN website.
+
+## 3. Installing R packages dependencies
+
+The wimtrap package depends on various other packages that have to be prior installed, among which some belong to the Bioconductor project. These latter are installed with a specific function, different from the standard one.
+
+```{r, eval = FALSE}
+install.packages(c("biomartr", "caret", "data.table", "pROC", "readr","xgboost", "ggplot2"))
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(c("Biostrings", "GenomeInfoDb", "GenomicRanges", "IRanges", "S4Vectors",
+                       "biomaRt", "rtracklayer", "XVector"))
+```
+
+## 4. Installing wimtrap package
+
+Please download the package to the local folder of your computer "path/to/downloads" and type in the following command line in your shell, modifying "path/to/downloads/wimtrap_1.1.0.tar.gz" by the actual address of the package on your computer:
+```{r, eval = FALSE}
+install.packages("path/to/downloads/wimtrap_1.1.0.tar.gz", type = "source", repos = NULL)
+```
+
+# Citation
+
+

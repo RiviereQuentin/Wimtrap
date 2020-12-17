@@ -1,0 +1,17 @@
+Package: Wimtrap
+Type: Package
+Title: Integrative tools to predict transcription factor binding site location
+Version: 0.1.0
+Author: Quentin Rivière, Madalina Ciortan, Massimiliano Corso, Nathalie Verbruggen, Matthieu Defrance
+Maintainer: Quentin Rivière <qri@hotmail.be>
+Description: This package implements a method aimed at building and applying models of prediction of transcription factor binding sites based on a set of potential binding sites that are located by a prior pattern-matching analysis and that are annotated with genomic features extracted at their location. 
+Imports: Biostrings, GenomeInfoDb, GenomicRanges, IRanges, S4Vectors, biomaRt, biomartr, caret, data.table, methods, pROC, readr, rtracklayer, xgboost, graphics, utils
+License: GPL-2
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
