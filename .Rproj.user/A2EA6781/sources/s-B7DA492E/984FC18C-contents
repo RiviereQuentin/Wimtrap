@@ -1,0 +1,47 @@
+annotations_files <- paths
+DataSet <- data.frame()
+for (file in annotations_files){
+  TF <- unlist(strsplit(file, "_annotations"))[1]
+  considered <- data.table::fread(file,
+                                  stringsAsFactors = TRUE)
+  considered$TF <- TF
+  if(modeling){
+    NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
+    DataSet <- rbind(DataSet,
+                     considered[considered$ChIP.peak == 1,],
+                     considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
+  } else {
+    DataSet <- rbind(DataSet, considered)
+  }
+}
+
+
+
+# Identify the true and the false binding sites
+if(modeling){
+  GenomicRanges::mcols(AnnotatedMatches)["ChIP.peak"] <- 0
+  GenomicRanges::mcols(AnnotatedMatches)[GenomicRanges::findOverlaps(Matches[[i]], ChIP_regions[[names(Pwm)[i]]])@from,"ChIP.peak"] <- 1
+}
+
+
+genomic_data.ex <- c(CE = wesystem.file("conserved_elements_example.bed", package = "Wimtrap"),
+                      DGF = system.file("DGF_example.bed", package = "Wimtrap"),
+                      DHS = system.file("DHS_example.bed", package = "Wimtrap"),
+                      X5UTR = system.file("x5utr_example.bed", package = "Wimtrap"),
+                      CDS = system.file("cds_example.bed", package = "Wimtrap"),
+                      Intron = system.file("intron_example.bed", package = "Wimtrap"),
+                      X3UTR = system.file("x3utr_example.bed", package = "Wimtrap")
+                     )
+imported_genomic_data.ex <- importGenomicData(biomart = FALSE,
+                                              genomic_data = genomic_data.ex,
+                                              tss = system.file("tss_example.bed", package = "Wimtrap"),
+                                              tts = system.file("tts.bed", package = "Wimtrap"))
+                                              genomic_data = genomic_data.ex)
+TFBSdata.ex <- getTFBSdata(pfm = system.file("pfm_example.jaspar", package = "Wimtrap"),
+                           organism = NULL,
+                           genome_sequence = system.file("genome_example.fa", package = "Wimtrap"),
+                           imported_genomic_data = imported_genomic_data.ex)
+TFBSmodel.ex <- buildTFBSmodel(TFBSdata = TFBSdata.ex,
+                               ChIPpeaks = c(PIF3 = system.file("PIF3_example.bed", package = "Wimtrap"),
+                                             TOC1 = system.file("TOC1_example.bed", package = "Wimtrap")),
+                               TF4Validation = "PIF3")

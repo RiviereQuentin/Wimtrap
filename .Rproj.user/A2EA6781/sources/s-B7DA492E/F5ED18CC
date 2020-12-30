@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1609074563695.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2574554864",
+    "id" : "F5ED18CC",
+    "lastKnownWriteTime" : 1609240333,
+    "last_content_update" : 1609240333995,
+    "path" : "~/Documents/Wimtrap/R/Wimtrap.R",
+    "project_path" : "R/Wimtrap.R",
+    "properties" : {
+        "cursorPosition" : "1891,0",
+        "scrollLine" : "1870"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 12,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

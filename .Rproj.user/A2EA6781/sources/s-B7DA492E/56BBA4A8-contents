@@ -1,0 +1,52 @@
+Ensembl.test <- loadEnsembl(organism = "Arabidopsis thaliana")
+Struct.test <- getStructure(Ensembl.test)
+head(Struct.tes)
+ensembl <- Ensembl.test
+imported_genomic_data <- imported_genomic_data.ex2
+ChIPpeaks = c(
+  TOC1 = "/home/quentin/Documents/Wimtrap/inst/extdata/TOC1_example.bed",
+  PIF3 ="/home/quentin/Documents/Wimtrap/inst/extdata/PIF3_example.bed"
+)
+
+pfm = "/home/quentin/Documents/Wimtrap/inst/extdata/pfm_example.jaspar"
+organism = NULL
+genome_sequence = "/home/quentin/Documents/Wimtrap/inst/extdata/genome_example.fa"
+imported_genomic_data = imported_genomic_data.ex2
+matches = NULL
+strandAsFeature = FALSE
+pvalThreshold = 0.001
+
+imported_genomic_data <- imported_genomic_data.ex2
+directInput_matches = sourceData$matches
+Pwm = sourceData$pwm
+StructureTracks <- imported_genomic_data[names(imported_genomic_data) %in% c("ProximalPromoter", "Promoter", "X5UTR", "CDS", "Intron",
+                                                                             "X3UTR", "Downstream", "TTS", "TSS")]
+FeatureRanges_list <- imported_genomic_data[!(names(imported_genomic_data) %in% c("ProximalPromoter", "Promoter", "X5UTR", "CDS", "Intron",
+                                                                                  "X3UTR", "Downstream", "TTS", "TSS"))]
+genome = sourceData$genome
+TFNames = names(ChIPpeaks)
+pvalThreshold = 0.001
+modeling = TRUE
+ChIP_regions = sourceData$ChIP
+targetTF <- "PIF3"
+short_window = 20
+medium_window = 400
+long_window = 1000
+
+ genomic_data.ex <- c(CE = system.file("extdata/conserved_elements_example.bed", package = "Wimtrap"),
+                       DGF = system.file("extdata/DGF_example.bed", package = "Wimtrap"),
+                       DHS = system.file("extdata/DHS_example.bed", package = "Wimtrap"),
+                       X5UTR = system.file("extdata/x5utr_example.bed", package = "Wimtrap"),
+                       CDS = system.file("extdata/cds_example.bed", package = "Wimtrap"),
+                       Intron = system.file("extdata/intron_example.bed", package = "Wimtrap"),
+                       X3UTR = system.file("extdata/x3utr_example.bed", package = "Wimtrap")
+                      )
+ imported_genomic_data.ex <- importGenomicData(biomart = FALSE,
+                                               genomic_data = genomic_data.ex,
+                                               tss = system.file("extdata/tss_example.bed", package = "Wimtrap"),
+                                               tts = system.file("extdata/tts_example.bed", package = "Wimtrap"))
+ TFBSdata.ex <- getTFBSdata(pfm = system.file("extdata/pfm_example.jaspar", package = "Wimtrap"),
+                            TFnames = c("PIF3", "TOC1"),
+                            organism = NULL,
+                            genome_sequence = system.file("extdata/genome_example.fa", package = "Wimtrap"),
+                            imported_genomic_data = imported_genomic_data.ex)

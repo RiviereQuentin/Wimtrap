@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1607510155642.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "A97EC639",
+    "lastKnownWriteTime" : 1577302652,
+    "last_content_update" : 1577302652,
+    "path" : "~/Documents/Wimtrap2.0/Source/ParametersTomato.R",
+    "project_path" : "../Wimtrap2.0/Source/ParametersTomato.R",
+    "properties" : {
+        "cursorPosition" : "81,47",
+        "scrollLine" : "0"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

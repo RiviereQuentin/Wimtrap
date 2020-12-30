@@ -1,0 +1,119 @@
+#Focus on the ChIP-seq obtained in plantlets
+ChIPpeaks <- c(PIF3 ="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/PIF3.bed",
+               ABF3 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/ABF3.narrowPeak",
+               PIF5 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/PIF5.narrowPeak",
+               NAC52 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/SGS1.narrowPeak",
+               NAC50 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/NAC50.narrowPeak",
+               CCA1 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/CCA1.narrowPeak",
+               HB7 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/ATHB7.narrowPeak",
+               PIF4 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/PIF4.narrowPeak",
+               FBH3 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/FBH3.narrowPeak",
+               PRR5 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/PRR5.bed",
+               TOC1 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/TOC1.bed",
+               PRR7 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/PRR7.bed",
+               ABF1="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/ABF1.narrowPeak",
+               ABF4="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/ABF4.narrowPeak",
+               NAC102="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/ANAC102.narrowPeak",
+               GBF2="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/GBF2.narrowPeak",
+               GBF3="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/GBF3.narrowPeak",
+               HAT22="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/HAT22.narrowPeak",
+               HB5="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/HB5.narrowPeak",
+               HB6="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/HB6.narrowPeak",
+               HBI1="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/HBI1.narrowPeak",
+               HEC1="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/HEC1.narrowPeak",
+               IBH1="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/IBH1.narrowPeak",
+               LHY="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/LHY.narrowPeak",
+               MYB3="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/MYB3.narrowPeak",
+               MYB44="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/MYB44.narrowPeak",
+               PIF1="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/PIF1.narrowPeak",
+               REVOLUTA="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/REVOLUTA.narrowPeak",
+               WRKY18="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/WRKY18.narrowPeak",
+               WRKY33="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/WRKY33.narrowPeak",
+               WRKY40="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/WRKY40.narrowPeak",
+               RD26="C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/RD26.narrowPeak"
+              )
+library(wimtrap)
+pfm <- "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/corrections.jaspar"
+#Initialize the variables
+organism = "Arabidopsis thaliana"
+genome_sequence = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/genome_athal.fa"
+tss = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/Structures/TSS.bed"
+tts = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/Structures/TTS.bed"
+promoter = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/Structures/Promoter_athal.bed"
+x5utr = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/Structures/X5UTR_athal.bed"
+cds = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/Structures/CDS_athal.bed"
+intron = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/Structures/Intron_athal.bed"
+x3utr = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/Structures/X3UTR_athal.bed"
+downstream = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/Structures/Downstream_athal.bed"
+conserved_elements = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/CNS.bed"
+otherFeatures = c(phastcons = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/CE_Ath.gtf",
+                  ChromatinState = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChromatinStates.bed",
+                  DGF= "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/DGF_Ath_seedling_7_day_old.bed",
+                  ActH3K4me3 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChromatinMarks/ActH3K4me3.bed",
+                  ActH3K9ac = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChromatinMarks/ActH3K9ac.bed",
+                  ActH3K36me3 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChromatinMarks/ActH3K36me3.bed",
+                  AmbH4K16ac = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChromatinMarks/AmbH4K16ac.bed",
+                  RepH3K27me3 = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChromatinMarks/RepH3K27me3.bed",
+                  RepH3T3ph = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/ChromatinMarks/RepH3T3ph.bed",
+                  Nucleosomes = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/Nucleosomes.bed"
+)
+groupTFbyDHS <- data.frame(TFNames = names(ChIPpeaks),
+                           DHS = "seedling"
+)
+dhs = c(seedling = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/DHS/DHS_Ath_seedlings_14_days.bed",
+        flower = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/DHS/DHS_Ath_flower_plantDHS.bed",
+        leaf = "C:/Users/qri/Documents/Doctorat/wimtrap/MachineLearning/UpstreamWim/Source/DHS/DHS_Ath_leaf_normal.bed")
+
+smoothing_window = 1
+default_value_when_missing = 0
+promoterLength = 1500
+downstreamLength = 1500
+proportionTF_Validation = 0.5
+strandAsFeature = TRUE
+DNAregionsName = "Motifs"
+pvalThreshold = 10^-3
+matches <- NULL
+TF4Validation <- NULL
+TFspecific <- FALSE
+proximalLength <- 300
+
+test <- buildTFBSmodel_custom(organism,
+                                          ChIPpeaks,
+                                          genome_sequence,
+                                          pfm,tss,
+                                          promoter,
+                                          x5utr,
+                                          cds,
+                                          intron,
+                                          x3utr,
+                                          downstream,
+                                          dhs,
+                                          groupTFbyDHS,
+                                          conserved_elements,
+                                          otherFeatures,
+                                          matches,
+                                          smoothing_window,
+                                          default_value_when_missing,
+                                          promoterLength,
+                                          downstreamLength,
+                                          proportionTF_Validation,
+                                          strandAsFeature,
+                                          pvalThreshold,
+                                          TFspecific,
+                                          TF4Validation,
+                                          targetsROC)
+evalxgb <- function(xgbresult){
+  xgbpred <- ifelse(xgbresult$validation > 0.5,1,0)
+  cat("Performances of the model\n")
+  print(caret::confusionMatrix(as.factor(xgbpred), as.factor(xgbresult$response)))
+  mat <- xgboost::xgb.importance(model = xgbresult$model)
+  cat("Features importance")
+  print(mat)
+  xgboost::xgb.plot.importance(importance_matrix = mat[1:35])
+  pdf(file = "out.pdf", width = 8.27, height = 11.67, pointsize = 10)
+  plot(pROC::roc(xgbresult$response, xgbresult$validation))
+  lines(pROC::roc(xgbresult$response, xgbresult$pm), col = "red")
+  legend(x = "bottom", legend = c("Model", "P-M"), fill = c("black", "red"))
+  mtext(text = round(pROC::auc(xgbresult$response, xgbresult$validation), 2), side = 2)
+  dev.off()
+}

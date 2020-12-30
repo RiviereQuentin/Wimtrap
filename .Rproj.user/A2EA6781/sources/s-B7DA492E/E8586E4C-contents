@@ -1,0 +1,1025 @@
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Lists for each TF as GRanges object the location of their ChIP-peaks,
+### which is input by user as GRanges objects or from BED source file(s)
+### The regions defining the ChIP-peaks are limited to a fixed lenght
+### anchored to the center
+#========================================================================================#
+listChIPRegions <- function(ChIP_paths, directInput_ChIPGRanges, width){
+  #@Import regions from BED files
+  ChIP_regions <- lapply(ChIP_paths, read.delim, header = FALSE)
+  #Limit the length of the ChIP-peaks to
+  #400bp around the center
+  for (i in 1:length(ChIP_regions)){
+    considered <- ChIP_regions[[i]]
+    considered <- data.frame(
+      seqnames = considered[,1],
+      start = considered[,2],
+      end = considered[,3]
+    )
+    considered$seqnames <- wimtrap:::getRiddChr(considered$seqnames)
+    considered <- GenomicRanges::makeGRangesFromDataFrame(considered)
+    considered <- IRanges::resize(considered, width, fix = "center")
+    ChIP_regions[[i]] <- considered
+  }
+  names(ChIP_regions) <- names(ChIP_paths)
+  ChIP_regions <- c(ChIP_regions, directInput_ChIPGRanges)
+  return(ChIP_regions)
+}
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Returns a list of matrices describing the Pwm of each considered TF.
+### The PWM might be directly input as a matrix or imported from a source
+### file encoded in jaspar.
+### If the organism is Arabidopsis thaliana, the PWM can be automatically
+### searched in the PlanTFDB database
+#========================================================================================#
+getPwm <- function(pfm_path = NULL, directInput_pwmMatrices = NULL, organism, ChIP_regions){
+  TFNames <- names(ChIP_regions)
+  if (!is.null(directInput_pwmMatrices)) {
+    if (is.list(directInput_pwmMatrices)) {
+      directInput_pwmMatrices <- directInput_pwmMatrices
+    } else {
+      directInput_pwmMatrices <- list(directInput_pwmMatrices)
+    }
+    input_pwm <- list()
+    for (i in seq_along(directInput_pwmMatrices)) {
+      input_pwm[[i]] <-
+        wimtrap:::buildPwm(directInput_pwmMatrices[[i]], genome)
+      names(input_pwm)[[i]] <-
+        names(directInput_pwmMatrices)[i]
+      rownames(input_pwm[[i]]) <- c("A", "C", "G", "T")
+    }
+  } else {
+
+  }
+
+  if (!is.null(pfm_path)) {
+    List_pfm <- wimtrap:::readPSFM(pfm_path)
+    input_pwm <- list()
+
+    for (i in seq_along(List_pfm)) {
+      input_pwm[[i]] <- wimtrap:::buildPwm(List_pfm[[i]], genome)
+      names(input_pwm)[[i]] <- names(List_pfm)[i]
+      rownames(input_pwm[[i]]) <- c("A", "C", "G", "T")
+    }
+
+  } else {
+
+  }
+
+  if (length(organism) > 0 && organism == "Arabidopsis thaliana") {
+    #@ Identification of the TFs for which no PFM/PWM has been
+    #@ specified and thus for which the PWM has to be retrieved
+    #@ from the database
+    if (!is.null(pfm_path) | !is.null(directInput_pwmMatrices)) {
+      TFDBquery <- TFNames[!(TFNames %in% names(input_pwm))]
+    } else {
+      input_pwm <- NULL
+      TFDBquery <- TFNames
+    }
+
+    #@ Query the database
+    if (length(TFDBquery) == 0) {
+      Pwm <- input_pwm
+    } else {
+      Pwm <- list()
+      for (TF in seq_along(TFDBquery)) {
+        data("ath_ID_mapping", package = "wimtrap")
+        data("ath_PWM", package = "wimtrap")
+        list_columns <- list()
+
+        for (i in seq_along(ath_ID_mapping)) {
+          list_columns[[i]] <- ath_ID_mapping[, i]
+        }
+
+        GeneLine <- sapply(list_columns,
+                           function(x) {
+                             Line = grep(pattern = TFDBquery[TF], as.character(x))
+                             return(Line[1])
+                           })
+
+        if (all(is.na(GeneLine))) {
+          stop(paste0(
+            c(
+              "The motif of ",
+              TFDBquery[TF],
+              " is not described by plantTFDB.\nInput it through the \"psfm\" argument."
+            )
+          ))
+        } else {
+          GeneID <- ath_ID_mapping[GeneLine[which(!(is.na(GeneLine)))[1]], 1]
+          Pwm[[TF]] <- ath_PWM[[TFDBquery[TF]]]
+          names(Pwm)[[TF]] <- TFDBquery[TF]
+        }
+
+      }
+
+      if (!(is.null(input_pwm))) {
+        Pwm <- c(Pwm, input_pwm)
+      } else {
+
+      }
+    }
+  } else {
+    Pwm <- input_pwm
+  }
+  return(Pwm)
+}
+
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Allows to import as R objects all the source data that will be used to carry on the
+### pattern-matching analysis and to annotate the PWM-matches with contextual genomic
+### features.
+#========================================================================================#
+inputData <- function(){
+  DNAregionsName = "Motifs"
+  host = NULL
+  biomart = NULL
+  dataset = NULL
+
+  if (is.null(pfm)) {
+    pfm_path <- NULL
+    directInput_pwmMatrices <- NULL
+  } else {
+    if (class(pfm) == "character") {
+      pfm_path <- pfm
+      directInput_pwmMatrices <- NULL
+    } else {
+      pfm_path <- NULL
+      directInput_pwmMatrices <- pfm
+    }
+  }
+
+  #@ Location of the ChIP-peaks related to the TFs for which
+  #@ the PFMs are provided can be input from a BED3 file
+  #@ or from a GRanges object
+  if (class(ChIPpeaks) == "character") {
+    ChIP_paths <- ChIPpeaks
+    directInput_ChIPGRanges <- NULL
+  } else {
+    ChIP_paths <- NULL
+    directInput_ChIPGRanges <- ChIPpeaks
+  }
+
+  #@ The location of each structural genomic feature
+  #@ as well as the location of the TSS of protein-coding
+  #@ genes are input separetely but are from now
+  #@ put together. The _annotateOccurences_ function
+  #@ will then determine which ones have to be ignored,
+  #@ downloaded or imported from source files.
+  structuralFeatures <- list(promoter, x5utr, cds,
+                             intron, x3utr, downstream, tts, tss)
+  names(structuralFeatures) <-
+    c("Promoter",
+      "X5UTR",
+      "CDS",
+      "Intron",
+      "X3UTR",
+      "Downstream",
+      "closestTTS",
+      "closestTSS")
+
+  #@ The location of open-DNA regions can be eiher ignored,
+  #@ imported from source file(s) or input as a list of
+  #@ GRanges objects.
+  if (is.null(dhs)) {
+    directInput_dhsGRanges <- NULL
+    dhs_paths <- NULL
+  } else {
+    if (class(dhs) == "character") {
+      dhs_paths <- dhs
+      directInput_dhsGRanges <- NULL
+    } else {
+      dhs_paths <- NULL
+      directInput_dhsGRanges <- dhs
+    }
+  }
+
+  #@ The location of conserved sequences can be eiher ignored,
+  #@ imported from source file(s) or input as a GRanges object.
+  if (is.null(conserved_elements)) {
+    directInput_conservedGRanges <- NULL
+    conserved_paths <- NULL
+  } else {
+    if (class(conserved_elements) == "character") {
+      conserved_paths <- conserved_elements
+      directInput_conservedGRanges <- NULL
+    } else {
+      conserved_paths <- NULL
+      directInput_conservedGRanges <- conserved_elements
+    }
+  }
+
+  #@ Additional features can be eiher ignored,
+  #@ imported from source file(s) or input as a list of
+  #@ GRanges objects.
+  if (is.null(otherFeatures)) {
+    directInput_featureGRanges <- NULL
+    feature_paths <- NULL
+  } else {
+    if (class(otherFeatures) == "character") {
+      feature_paths <- otherFeatures
+      directInput_featureGRanges <- NULL
+    } else {
+      feature_paths <- NULL
+      directInput_featureGRanges <- otherFeatures
+    }
+  }
+
+  #@ The genome sequence is not necessary to get
+  #@ if the user achieves the patern-matching analysis
+  #@ with an external tool.
+  #@ Otherwise the genome sequence can be imported either
+  #@ from a FASTA file, a DNAStringSet or can be downloaded.
+  if (is.null(genome_sequence)) {
+    genome_path <- NULL
+    directInput_DNAsequences <- NULL
+  } else {
+    if (class(genome_sequence) != "DNAStringSet") {
+      if (genome_sequence == "getGenome") {
+        genome_path <- NULL
+        directInput_DNAsequences <- NULL
+      } else {
+        genome_path <- genome_sequence
+        directInput_DNAsequences <- NULL
+      }
+    } else {
+      genome_path <- NULL
+      directInput_DNAsequences <- genome_sequence
+    }
+  }
+
+  #@ We have to indicate whether the user has input his
+  #@ own matches or not, as a list of GRanges objects.
+  #@ The user can optionally indicate the matches scores
+  #@ in the first metadata column of the GRanges objects,
+  #@ as raw scores or as p-values scores.
+  #@ If the pattern-matching analysis is carried on by wimtrap,
+  #@ the raw score is reported in the first metadata column
+  #@ and the p-value in the second. But only the p-value will
+  #@ be considered as predictive feature.
+  if (is.null(matches)) {
+    directInput_matches <- NULL
+    DirectMatches <- FALSE
+    NoScore <- FALSE
+    IndexMatch <- 2
+  } else {
+    directInput_matches <- matches
+    if (!(is.list(directInput_matches))) {
+      directInput_matches <- list(directInput_matches)
+    } else {
+
+    }
+    DirectMatches <- TRUE
+    if (length(rtracklayer::mcols(directInput_matches[[1]])) == 0) {
+      NoScore <- TRUE
+      IndexMatch <- NULL
+    } else {
+      NoScore <- FALSE
+      IndexMatch <- 1
+    }
+    for (match in seq_along(directInput_matches)) {
+      #@ The code will crash if the matches input by the user are not
+      #@ oriented.
+      if (length(which(as.logical(GenomicRanges::strand(directInput_matches[[match]]) == "*"))) ==
+          length(GenomicRanges::strand(directInput_matches[[match]]) == "*")) {
+        if (strandAsFeature == FALSE) {
+          #@ Inventing the orientation of the matches won't affect the annotations,
+          #@ except if the orientation of the matches to the genes whose the TSS
+          #@ is the closest is taken into account.
+          GenomicRanges::strand(directInput_matches[[match]]) <-
+            S4Vectors::Rle(values = c("+", "-"),
+                           length = c(1, length(directInput_matches[[match]]) -
+                                        1))
+        } else {
+          stop("Please provide oriented matches")
+        }
+      } else {
+
+      }
+    }
+  }
+  ####################################################################
+
+  ####################################################################
+  ### Carry on all the preliminary steps to the modeling: import the
+  ### data, identify the potential binding sites by pattern-matching,
+  ### annotate them with the considered features and label them as
+  ### TRUE or FALSE according to the ChIP-seq data.
+  ### Return as well the objects storing the sources data and options
+  no_score = NoScore
+  index_match = IndexMatch
+  dna_regions_name = DNAregionsName
+
+  message("Importing ChIP-peaks data and genomic-wide features...")
+
+  #@ The first part of the code is mainly format ckecking
+  #@ Globally, data can be input from objects in the R environment
+  #@ (cf. "directInput") or from a source file (cf. "paths").
+  #@ In certain cases data can be as well downloaded
+
+  ChIP_regions <- listChIPRegions(ChIP_paths, directInput_ChIPGRanges, 400)
+
+  #@ Treatment of location and/or scoring of
+  #@ open DNA regions (as DHS)
+  if (is.null(directInput_dhsGRanges)) {
+    if (!(is.null(dhs_paths))) {
+      dhsRanges_list <- wimtrap:::importFeatures(dhs_paths)
+      if (!(is.null(names(dhs_paths)))) {
+        names(dhsRanges_list) <- names(dhs_paths)
+      } else {
+
+      }
+      #@ If only one considered context about
+      #@ open DNA regions (and thus about ChIP-seq),
+      #@ we can already name the object "DHS"
+      if (length(dhsRanges_list) == 1) {
+        names(dhsRanges_list) <- "DHS"
+      } else {
+
+      }
+    } else {
+      #@ This case means that the open DNA regions
+      #@ are ignored as a feature
+      dhsRanges_list <- NULL
+    }
+  } else {
+    if (is.list(directInput_dhsGRanges)) {
+      dhsRanges_list <- directInput_dhsGRanges
+    } else {
+      #@ If only one considered context about
+      #@ open DNA regions (and thus about ChIP-seq),
+      #@ we can already name the object "DHS"
+      dhsRanges_list <- list(directInput_dhsGRanges)
+      names(dhsRanges_list) <- "DHS"
+    }
+  }
+
+  #@ Treatment of the phyllogenetically conserved
+  #@ regions and possibly their scores
+  if (length(directInput_conservedGRanges) == 0) {
+    if (!(is.null(conserved_paths))) {
+      conservedRanges_list <- wimtrap:::importFeatures(conserved_paths)
+      names(conservedRanges_list) <- "ConservedElement"
+    } else {
+      #@ This case means that the conserved regions
+      #@ are ignored as feature
+      conservedRanges_list <- NULL
+    }
+  } else {
+    if (is.list(directInput_conservedGRanges)) {
+      conservedRanges_list <- directInput_conservedGRanges
+      names(conservedRanges_list) <- "ConservedElement"
+    } else {
+      conservedRanges_list <- list(directInput_conservedGRanges)
+      names(conservedRanges_list) <- "ConservedElement"
+    }
+  }
+
+  #@ Treatment of additional features
+  if (length(directInput_featureGRanges) == 0) {
+    if (!missing(feature_paths) | !(is.null(feature_paths))) {
+      FeatureRanges_list <- wimtrap:::importFeatures(feature_paths)
+      if (!(is.null(names(feature_paths)))){
+        names(FeatureRanges_list) <- names(feature_paths)
+      }
+    } else {
+
+    }
+  } else {
+    if (is.list(directInput_featureGRanges)) {
+      FeatureRanges_list <- directInput_featureGRanges
+    } else {
+      FeatureRanges_list <- list(directInput_featureGRanges)
+    }
+  }
+
+  #@ The conserved regions and additional features will be
+  #@ from now treated altogether
+  FeatureRanges_list <- c(conservedRanges_list, FeatureRanges_list)
+
+  #@ Get the sequence of the chromosomes of the genome either from
+  #@ the fasta file whose the path is specified in the genome_path
+  #@ parameter, either directly from a database (Ensembl, Ensembl Genomes,
+  #@ Refseq or Genebank) through the biomartr package
+  if (missing(genome_path) | is.null(genome_path)) {
+    if (length(directInput_matches) == 0) {
+      if (length(directInput_DNAsequences) > 0) {
+        genome <- directInput_DNAsequences
+      } else {
+        message("Downloading chromosomes DNA sequences from Ensembl...")
+        genome <- wimtrap:::getChromosomes(organism)
+      }
+    } else {
+      genome <- NULL
+    }
+  } else {
+    genome <- Biostrings::readDNAStringSet(genome_path)
+  }
+
+  #@ Avoid any discreapency between sources data
+  #@ by deleting the "Chr", "CHR" and "chr" prefixes
+  #@ from the chromosomes names
+  if (!(is.null(genome))) {
+    names(genome) <- wimtrap:::getRiddChr(names(genome))
+  } else {
+
+  }
+
+  #@ Treatment of the PFM or PWM of the TFs
+
+  #@ If the considered organism is A. thaliana,
+  #@ the PWM of the TFs can be optionally automatically
+  #@ retrieved from the PlantTFDB database
+
+  #@ The following steps are not necessary if the user
+  #@ has performed the pattern-matching analysis with an
+  #@ external tool
+  Pwm <- getPwm(pfm_path, directInput_pwmMatrices, organism, ChIP_regions)
+  Pwm <- Pwm[names(Pwm) %in% names(ChIP_regions)]
+
+  #@ Treatment of the structural genomic features
+
+  #@ Identify the location of which genonmic
+  #@ structure(s) has to be downloaded (OPTIONAL)
+
+  UseOfBiomart <- rep(0, length(structuralFeatures))
+  for (i in seq_along(UseOfBiomart)) {
+    considered <- structuralFeatures[[i]][1]
+    if (is.character(considered)) {
+      UseOfBiomart[i] <- (considered == "biomart")
+    } else {
+
+    }
+  }
+  if (length(UseOfBiomart[UseOfBiomart == 1]) > 0) {
+    whichToBiomart <- which(UseOfBiomart == 1)
+    UseOfBiomart <- TRUE
+  } else {
+    UseOfBiomart <- FALSE
+  }
+
+  if (UseOfBiomart) {
+    message("Downloading structural genomic ranges...")
+    #@ Load the biomart database
+    Ensembl <-
+      wimtrap:::loadEnsembl(organism, host, biomart, dataset)
+    #@ Query the database
+    StructureBiomart <-
+      wimtrap:::getSructure(Ensembl, promoterLength, downstreamLength)
+  } else {
+
+  }
+
+  #@ List the location of each genomic structures in "StructuralFeatures"
+  #@ from the specified source (GRanges, source file, biomart)
+  for (structure in seq_along(structuralFeatures)) {
+    considered <- structuralFeatures[[structure]][1]
+    if (length(considered) > 1) {
+      #@ The input is a GRanges objectS
+    } else {
+      if (length(considered) == 1 & is.character(considered)) {
+        if (considered == "biomart") {
+          structuralFeatures[[structure]] <- StructureBiomart[[structure]]
+        } else {
+          if (structure < (length(structuralFeatures)-1)) {
+            structuralFeatures[[structure]] <-
+              wimtrap:::importFeatures(considered)[[1]]
+          } else {
+            structuralFeatures$closestTTS <-
+              rtracklayer::import(structuralFeatures[[(length(structuralFeatures)-1)]][1])
+            structuralFeatures$closestTSS <-
+              rtracklayer::import(structuralFeatures[[length(structuralFeatures)]][1])
+          }
+        }
+      } else {
+
+      }
+    }
+  }
+
+  #@ Change the name of "structuralFeatures" to "StructureTracks"
+  StructureTracks <- structuralFeatures
+  GenomeInfoDb::seqlevels(StructureTracks$closestTSS) <- wimtrap:::getRiddChr(GenomeInfoDb::seqlevels(StructureTracks$closestTSS))
+  names(StructureTracks) <- c("Promoter",
+                              "X5UTR",
+                              "CDS",
+                              "Intron",
+                              "X3UTR",
+                              "Downstream",
+                              "closestTTS",
+                              "closestTSS")
+
+  sourceData <- list(
+    ChIP = ChIP_regions,
+    dhs = dhsRanges_list,
+    features = FeatureRanges_list,
+    genome = genome,
+    structures = StructureTracks,
+    pwm = Pwm,
+    matches = directInput_matches
+  )
+
+  return(sourceData)
+}
+
+
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Implements a fast method of pattern-matching
+#========================================================================================#
+matrixScan <- function (pwm, genome, pvalThreshold = 0.001){
+  NbChromosomes <- length(genome)
+  Start <- runif(200, 1, Biostrings::width(genome)[1] - 5000)
+  Start <- Start[!(is.na(Start))]
+  SequencesSample <- Biostrings::Views(genome[[1]], start = Start,
+                                       end = Start + 5000)
+  SequencesSample <- list(SequencesSample)
+  if (NbChromosomes > 1) {
+    for (i in seq(2, NbChromosomes)) {
+      Start <- runif(200, 1, Biostrings::width(genome)[i] -
+                       5000)
+      Start <- Start[!(is.na(Start))]
+      SequencesSample[[i]] <- Biostrings::Views(genome[[i]],
+                                                start = Start, end = Start + 5000)
+    }
+  }
+  RandomFwScan <- lapply(SequencesSample, Biostrings::matchPWM,
+                         pwm = pwm, min.score = "0%", with.score = TRUE)
+  RandomRwScan <- lapply(SequencesSample, Biostrings::matchPWM,
+                         pwm = Biostrings::reverseComplement(pwm), min.score = "0%",
+                         with.score = TRUE)
+  RandomScores <- rtracklayer::mcols(RandomFwScan[[1]])
+  if (length(genome) == 1) {
+    init = 1
+  }
+  else {
+    init = 2
+  }
+  for (i in seq(init, length(genome))) {
+    RandomScores <- rbind(RandomScores, rtracklayer::mcols(RandomFwScan[[i]]))
+  }
+  for (i in seq_along(genome)) {
+    RandomScores <- rbind(RandomScores, rtracklayer::mcols(RandomRwScan[[i]]))
+  }
+  RandomScores <- RandomScores@listData$score
+  DistributionScores <- graphics::hist(RandomScores, breaks = 1e+06,
+                                       plot = FALSE)
+  PvaluesScores <- cumsum(DistributionScores$counts[seq(length(DistributionScores$counts),
+                                                        1, -1)])/sum(DistributionScores$counts)
+  PvaluesCentered <- abs(PvaluesScores - pvalThreshold)
+  ScoreThreshold <- DistributionScores$breaks[length(DistributionScores$breaks) -
+                                                which.min(PvaluesCentered) + 1]
+  ScanFw <- lapply(genome, Biostrings::matchPWM, pwm = pwm,
+                   min.score = ScoreThreshold, with.score = TRUE)
+  ScanRw <- lapply(genome, Biostrings::matchPWM, pwm = Biostrings::reverseComplement(pwm),
+                   min.score = ScoreThreshold, with.score = TRUE)
+  NbMatchesFw <- unlist(lapply(ScanFw, length))
+  NbMatchesRw <- unlist(lapply(ScanRw, length))
+  seqnamesMatches <- S4Vectors::Rle(rep(names(ScanFw), 2),
+                                    c(NbMatchesFw, NbMatchesRw))
+  rangesMatches <- IRanges::IRanges(ScanFw[[1]]@ranges)
+  if (length(genome) > 1) {
+    for (i in seq(2, length(ScanFw))) {
+      rangesMatches <- c(rangesMatches, IRanges::IRanges(ScanFw[[i]]@ranges))
+    }
+  }
+  for (i in seq_along(ScanRw)) {
+    rangesMatches <- c(rangesMatches, IRanges::IRanges(ScanRw[[i]]@ranges))
+  }
+  strandMatches <- S4Vectors::Rle(c("+", "-"), c(sum(NbMatchesFw),
+                                                 sum(NbMatchesRw)))
+  scoreMatches <- rtracklayer::mcols(ScanFw[[1]])
+  if (length(genome) > 1) {
+    for (i in seq(2, length(ScanFw))) {
+      scoreMatches <- rbind(scoreMatches, rtracklayer::mcols(ScanFw[[i]]))
+    }
+  }
+  for (i in seq_along(ScanRw)) {
+    scoreMatches <- rbind(scoreMatches, rtracklayer::mcols(ScanRw[[i]]))
+  }
+  names(scoreMatches) <- "matchScore"
+  x <- c(round(min(scoreMatches[, 1]), 5), round(RandomScores,
+                                                 5), round(max(scoreMatches[, 1]), 5))
+  if (length(which(is.infinite(x)))) {
+    x <- x[-which(is.infinite(x))]
+  }
+  DistributionScores <- graphics::hist(x, breaks = c(0, seq(min(x,
+                                                                na.rm = TRUE), max(x, na.rm = TRUE) + pvalThreshold/10,
+                                                            pvalThreshold/100)), ylim = c(0, length(x)), plot = FALSE)
+  PvaluesScores <- cumsum(DistributionScores$counts[seq(length(DistributionScores$counts),
+                                                        1, -1)])/sum(DistributionScores$counts)
+  PvaluesTable <- data.frame(score = DistributionScores$breaks[2:(length(DistributionScores$breaks) -
+                                                                    1)], p.value = PvaluesScores[seq((length(PvaluesScores) -
+                                                                                                        1), 1, -1)])
+  PvaluesTable <- rbind(PvaluesTable, c(round(max(scoreMatches[,
+                                                               1]), 4), 0))
+  scores <- as.factor(round(scoreMatches[, 1], 4))
+  PvaluesTable <- PvaluesTable[PvaluesTable$score %in% scores,
+                               ]
+  levels(scores) <- PvaluesTable$p.value
+  matchLogPval <- log10(as.numeric(as.character(scores)))
+  matchLogPval[is.infinite(matchLogPval)] <- min(matchLogPval[!(is.infinite(matchLogPval))])
+  ScanTrack <- GenomicRanges::GRanges(seqnames = seqnamesMatches,
+                                      ranges = rangesMatches, strand = strandMatches, scoreMatches,
+                                      matchLogPval)
+  overlaps <- GenomicRanges::findOverlaps(ScanTrack[GenomicRanges::strand(ScanTrack) == "+"], ScanTrack[GenomicRanges::strand(ScanTrack) == "-"],
+                                          ignore.strand = TRUE)
+  ScanTrack <- ScanTrack[-(length(ScanTrack[GenomicRanges::strand(ScanTrack) == "+"])+overlaps@to)]
+  return(ScanTrack)
+}
+
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Allows to determine the transcript whose the TSS (TTS) is the closest to PWM matches
+### and to calculte the distance to its TSS (TTS)
+#========================================================================================#
+getClosest <- function(GRanges_data, StructureTracks, modeling = TRUE,
+                       strandAsFeature = FALSE,
+                       TSS = TRUE){
+  #Distance to TSS or TTS?
+  if (TSS == TRUE){
+    TSS_Track <- StructureTracks[[length(StructureTracks)]]
+  } else {
+    TSS_Track <- StructureTracks[[length(StructureTracks) - 1]]
+  }
+  GRanges_data <- GRanges_data[as.character(GenomicRanges::seqnames(GRanges_data)) %in%
+                                 as.character(GenomeInfoDb::seqlevels(TSS_Track))]
+  ClosestTSS_Indices <- GenomicRanges::nearest(GRanges_data,
+                                               TSS_Track, ignore.strand = TRUE)
+  ClosestTSS_Data <- TSS_Track[ClosestTSS_Indices, ]
+  ClosestTSS <- rtracklayer::mcols(TSS_Track)[ClosestTSS_Indices,
+                                              1]
+  DistToClosestTSS <- GenomicRanges::distanceToNearest(GRanges_data,
+                                                       TSS_Track, ignore.strand = TRUE)
+  DistToClosestTSS <- rtracklayer::mcols(DistToClosestTSS)[,
+                                                           1]
+  DistToClosestTSS[as.logical((GenomicRanges::start(ClosestTSS_Data) >
+                                 GenomicRanges::start(GRanges_data)) & (GenomicRanges::strand(ClosestTSS_Data) ==
+                                                                          "+"))] <- -DistToClosestTSS[as.logical((GenomicRanges::start(ClosestTSS_Data) >
+                                                                                                                    GenomicRanges::start(GRanges_data)) & (GenomicRanges::strand(ClosestTSS_Data) ==
+                                                                                                                                                             "+"))]
+  DistToClosestTSS[as.logical((GenomicRanges::start(ClosestTSS_Data) <
+                                 GenomicRanges::start(GRanges_data)) & (GenomicRanges::strand(ClosestTSS_Data) ==
+                                                                          "-"))] <- -DistToClosestTSS[as.logical((GenomicRanges::start(ClosestTSS_Data) <
+                                                                                                                    GenomicRanges::start(GRanges_data)) & (GenomicRanges::strand(ClosestTSS_Data) ==
+                                                                                                                                                             "-"))]
+  if (TSS ==  TRUE){
+    if (strandAsFeature) {
+      if (modeling) {
+        MetaData <- cbind(as.data.frame(GenomicRanges::mcols(GRanges_data)),
+                          DistToClosestTSS = DistToClosestTSS, TranscriptOrientation = as.character(GenomicRanges::strand(ClosestTSS_Data)))
+      }
+      else {
+        MetaData <- cbind(as.data.frame(GenomicRanges::mcols(GRanges_data)),
+                          ClosestTSS = ClosestTSS, DistToClosestTSS = DistToClosestTSS,
+                          TranscriptOrientation = as.character(GenomicRanges::strand(ClosestTSS_Data)))
+      }
+    } else {
+      if (modeling) {
+        MetaData <- cbind(as.data.frame(GenomicRanges::mcols(GRanges_data)),
+                          DistToClosestTSS = DistToClosestTSS)
+      }
+      else {
+        MetaData <- cbind(as.data.frame(GenomicRanges::mcols(GRanges_data)),
+                          ClosestTSS = ClosestTSS, DistToClosestTSS = DistToClosestTSS)
+      }
+    }
+  }
+  else {
+    if (strandAsFeature) {
+      if (modeling) {
+        MetaData <- cbind(as.data.frame(GenomicRanges::mcols(GRanges_data)),
+                          DistToClosestTTS = DistToClosestTSS, TranscriptOrientation = as.character(GenomicRanges::strand(ClosestTSS_Data)))
+      }
+      else {
+        MetaData <- cbind(as.data.frame(GenomicRanges::mcols(GRanges_data)),
+                          closestTTS = ClosestTSS, DistToClosestTTS = DistToClosestTSS,
+                          TranscriptOrientation = as.character(GenomicRanges::strand(ClosestTSS_Data)))
+      }
+    } else {
+    if (modeling) {
+      MetaData <- cbind(as.data.frame(GenomicRanges::mcols(GRanges_data)),
+                        DistToClosestTTS = DistToClosestTSS)
+    }
+    else {
+      MetaData <- cbind(as.data.frame(GenomicRanges::mcols(GRanges_data)),
+                        closestTTS = ClosestTSS, DistToClosestTTS = DistToClosestTSS)
+    }
+    }
+  }
+  GRanges_data <- GenomicRanges::GRanges(seqnames = GenomeInfoDb::seqnames(GRanges_data),
+                                         ranges = IRanges::IRanges(start = GenomicRanges::start(GRanges_data),
+                                                                   end = GenomicRanges::end(GRanges_data)), strand = GenomicRanges::strand(GRanges_data),
+                                         MetaData)
+  return(GRanges_data)
+}
+
+
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Find the regions of 400bp that are potential regions bound by a considered TF
+### based on a p-value matching threshold and that are located around a TSS.
+### Annotate the matches with the different features considering different windows
+### length
+#========================================================================================#
+getCandidatesRegions <- function(directInput_matches,
+                                 Pwm,
+                                 dhsRanges_list,
+                                 StructureTracks,
+                                 FeatureRanges_list,
+                                 genome,
+                                 TFNames,
+                                 groupTFbyDHS,
+                                 pvalThreshold,
+                                 modeling,
+                                 promoterLength,
+                                 downstreamLength,
+                                 ChIP_regions) {
+  paths <- c()
+  #@Define the regions that are around a TSS,
+  #@from -promoterLength to +downstreamLength
+  TSSTrack <- as.data.frame(StructureTracks$closestTSS)
+  TTSTrack <- as.data.frame(StructureTracks$closestTTS)
+  colnames(TSSTrack)[6] <- "name"
+  colnames(TTSTrack)[6] <- "name"
+  TSSTrack <- TSSTrack[TSSTrack$name %in% TTSTrack$name,]
+  TTSTrack <- TTSTrack[TTSTrack$name %in% TSSTrack$name,]
+  TSSTrack <- TTSTrack[!(duplicated(TSSTrack$name)),]
+  rownames(TSSTrack) <- TSSTrack$name
+  TSSTrack <- TSSTrack[TTSTrack$name,]
+  TSSTrack$end <- TTSTrack$start
+  DirectStranded <- TSSTrack[TSSTrack$strand == "+",]
+  DirectStranded <- data.frame(seqnames = DirectStranded$seqnames,
+                               start = DirectStranded$start - 5000,
+                               end = DirectStranded$end + 5000,
+                               strand = "+")
+  ReverseStranded <- TSSTrack[TSSTrack$strand == "-",]
+  ReverseStranded <- data.frame(seqnames = ReverseStranded$seqnames,
+                                start = ReverseStranded$end - 5000,
+                                end = ReverseStranded$start + 5000,
+                                strand = "-")
+  DRStranded <- rbind(DirectStranded,
+                      ReverseStranded)
+  rm(DirectStranded)
+  rm(ReverseStranded)
+
+  DRStranded <- DRStranded[DRStranded$seqnames %in% names(genome),]
+  DRStranded <- split(DRStranded, f = DRStranded$seqnames)
+  DRStranded <- lapply(DRStranded,
+                       function(chrdata){
+                         chrdata <- chrdata[which((chrdata$end < width(genome)[which(names(genome) == chrdata[1,1])]) & (chrdata$start > 0)),]
+                         return(chrdata)
+                       })
+  DRStranded <- do.call(rbind, DRStranded)
+  DRStranded <- GenomicRanges::makeGRangesFromDataFrame(DRStranded,
+                                                        keep.extra.columns = TRUE)
+  DRStranded <- GenomicRanges::reduce(DRStranded, ignore.strand = TRUE)
+
+  if (length(directInput_matches) == 0) {
+    message("Pattern matching...")
+    #@ Scanning of the genome with the PWM
+    Pwm <- Pwm[which(names(Pwm) %in% TFNames)]
+    Matches <-
+      lapply(Pwm, matrixScan, genome, 2.5*pvalThreshold)
+  } else {
+    if (is.list(directInput_matches)) {
+      Matches <- directInput_matches
+    } else {
+      Matches <- list(directInput_matches)
+      Pwm <- names(Matches)
+      names(Pwm) <- names(Matches)
+    }
+  }
+  Matches <- lapply(Matches, function(x) {x <- x[GenomicRanges::mcols(x)[,2] <= log10(pvalThreshold)]; return(x)})
+  for (i in seq_along(Matches)) {
+    GenomeInfoDb::seqlevels(Matches[[i]]) <-
+      wimtrap:::getRiddChr(GenomeInfoDb::seqlevels(Matches[[i]]))
+  }
+
+
+
+  message("Annotation of the matches...")
+
+  #@ Annotate the matches associated to each TF
+
+  AnnotatedScanResults <- list()
+  for (i in seq_along(Matches)) {
+    print(paste("=>", names(Pwm)[i]))
+    #Select only regions around TSS
+    tmpa <- as.data.frame(Matches[[i]])
+    tmpa$strand <- "*"
+    tmpa <- GenomicRanges::makeGRangesFromDataFrame(tmpa)
+    if (is.null(dhsRanges_list)) {
+    } else {
+      #@ Get the "AllTracks" object for annotating matches
+      if (length(dhsRanges_list) > 1) {
+        #@ Choose the data about opening of DNA in the context
+        #@ in which the ChIP-seq for the considered TF has been carried on
+        if (is.null(groupTFbyDHS)) {
+          stop(
+            "Please supply the argument \"groupTFbyDHS\" to specify to which DHS data\neach transcription factor has to be associated"
+          )
+        } else {
+
+        }
+        TF_line <- which(groupTFbyDHS[, 1] == names(Pwm)[i])[1]
+        groupDHS <- groupTFbyDHS[TF_line, 2]
+        groupDHS <- which(names(dhsRanges_list) == groupDHS)
+        dhsGRanges <- dhsRanges_list[groupDHS]
+        names(dhsGRanges) <- "DHS"
+        AllTracks <-
+          c(dhsGRanges, FeatureRanges_list, Matches = tmpa)
+
+      } else {
+        #@ Only one context is considered for DHS
+        if (length(dhsRanges_list) == 1) {
+          names(dhsRanges_list) <- "DHS"
+          AllTracks <-
+            c(dhsRanges_list,
+              FeatureRanges_list, Matches = tmpa)
+        } else {
+          #@ No DHS considered
+          AllTracks <- c(FeatureRanges_list, Matches = tmpa)
+        }
+      }
+    }
+
+    #@ Annotations with the structural features
+    AnnotatedMatches <- Matches[[i]]
+    for (structure in names(StructureTracks)[-c(length(StructureTracks)-1, length(StructureTracks))]){
+      GenomicRanges::mcols(AnnotatedMatches)[structure] <- 0
+      GenomicRanges::mcols(AnnotatedMatches)[GenomicRanges::findOverlaps(Matches[[i]], StructureTracks[[structure]])@from,structure] <- 1
+    }
+    AnnotatedMatches <- getClosest(AnnotatedMatches, StructureTracks, modeling = FALSE, TSS = FALSE)
+    AnnotatedMatches <- getClosest(AnnotatedMatches, StructureTracks, modeling = FALSE, TSS = TRUE)
+    GenomicRanges::mcols(AnnotatedMatches)[,"Promoter"] <- 0
+    GenomicRanges::mcols(AnnotatedMatches)[which(AnnotatedMatches$DistToClosestTSS <=0) ,
+                                           4:(which(names(GenomicRanges::mcols(AnnotatedMatches))=="DistToClosestTTS")-2)] <- 0
+    GenomicRanges::mcols(AnnotatedMatches)[which(AnnotatedMatches$DistToClosestTSS <=0 &
+                                                   AnnotatedMatches$DistToClosestTSS > -promoterLength), 3] <- 1
+    GenomicRanges::mcols(AnnotatedMatches)[which(AnnotatedMatches$DistToClosestTSS > 0 &
+                                                   AnnotatedMatches$DistToClosestTTS < downstreamLength),
+                                           (which(names(GenomicRanges::mcols(AnnotatedMatches))=="DistToClosestTTS")-2)] <- 1
+    GenomicRanges::mcols(AnnotatedMatches)[which(AnnotatedMatches$DistToClosestTSS > 0 &
+                                                   AnnotatedMatches$DistToClosestTTS < 0),
+                                           (which(names(GenomicRanges::mcols(AnnotatedMatches))=="DistToClosestTTS")-2)] <- 0
+    GenomicRanges::mcols(AnnotatedMatches)[which(AnnotatedMatches$DistToClosestTSS > 0 &
+                                                   apply(GenomicRanges::mcols(AnnotatedMatches)[4:(which(names(GenomicRanges::mcols(AnnotatedMatches))=="DistToClosestTTS")-3)], 1, sum) > 0),
+                                           (which(names(GenomicRanges::mcols(AnnotatedMatches))=="DistToClosestTTS")-2)] <- 0
+
+
+    #@ Annotations with the categorical features
+    categorical <- c()
+    for (feature in names(AllTracks)){
+      if (length(AllTracks[[feature]]@elementMetadata@listData) > 0){
+        if(is.factor(AllTracks[[feature]]@elementMetadata@listData[[1]])){
+          categorical <- c(categorical, feature)
+        }
+      }
+    }
+
+    for (categoricalfeature in categorical){
+      GenomicRanges::mcols(AnnotatedMatches)[categoricalfeature] <- "NA"
+      GenomicRanges::mcols(AnnotatedMatches)[GenomicRanges::findOverlaps(Matches[[i]], AllTracks[[categoricalfeature]])@from,
+                                             categoricalfeature] <- as.character(GenomicRanges::mcols(AllTracks[[categoricalfeature]])[GenomicRanges::findOverlaps(Matches[[i]], AllTracks[[categoricalfeature]])@to,1])
+    }
+
+    #@ Annotations with the overlapping and numeric features
+    #@ considering different windows
+    for (feature in names(AllTracks)){
+      if (length(AllTracks[[feature]]@elementMetadata@listData) == 0){
+        GenomicRanges::mcols(AllTracks[[feature]])[feature] <- 1
+      }
+    }
+
+    Matches[[i]] <- Matches[[i]][GenomeInfoDb::seqnames(Matches[[i]]) %in% GenomeInfoDb::seqnames(StructureTracks$closestTSS)]
+    for (windowlength in c(20, 400, 1000)){
+      queries <- GenomicRanges::resize(Matches[[i]], windowlength, fix = "center")
+      for (feature in names(AllTracks)[!(names(AllTracks) %in% categorical)]){
+        overlaps <- GenomicRanges::findOverlaps(queries, AllTracks[[feature]])
+        peakcuts <- data.frame(start.query = GenomicRanges::start(queries[overlaps@from]),
+                               end.query = GenomicRanges::end(queries[overlaps@from]),
+                               start.subject = GenomicRanges::start(AllTracks[[feature]][overlaps@to]),
+                               end.subject = GenomicRanges::end(AllTracks[[feature]][overlaps@to]))
+        peakcuts$start.subject[peakcuts$start.subject < peakcuts$start.query] <- peakcuts$start.query[peakcuts$start.subject < peakcuts$start.query]
+        peakcuts$end.subject[peakcuts$end.subject > peakcuts$end.query] <- peakcuts$end.query[peakcuts$end.subject > peakcuts$end.query]
+        peakcuts$contribution <- (GenomicRanges::mcols(AllTracks[[feature]])[overlaps@to,1]*(peakcuts$end.subject-peakcuts$start.subject+1))/windowlength
+        GenomicRanges::mcols(AnnotatedMatches)[paste0(c(feature, "_", windowlength, "bp"), collapse = "")] <- 0
+        GenomicRanges::mcols(AnnotatedMatches)[overlaps@from[!duplicated(overlaps@from)], paste0(c(feature, "_", windowlength, "bp"), collapse = "")] <- tapply(peakcuts$contribution, overlaps@from, sum)
+      }
+    }
+
+    # Identify the true and the false binding sites
+    if(modeling){
+      GenomicRanges::mcols(AnnotatedMatches)["ChIP.peak"] <- 0
+      GenomicRanges::mcols(AnnotatedMatches)[GenomicRanges::findOverlaps(Matches[[i]], ChIP_regions[[names(Pwm)[i]]])@from,"ChIP.peak"] <- 1
+    }
+
+    # Calculate the number of PWM matches in the 100bp and 400bp windows centered
+    # on the considered PWM matches
+    GenomicRanges::mcols(AnnotatedMatches)["Matches_1000bp"] <- (GenomicRanges::mcols(AnnotatedMatches)["Matches_1000bp"][,1]*1000)/ncol(Pwm[[i]])
+    GenomicRanges::mcols(AnnotatedMatches)["Matches_400bp"] <- (GenomicRanges::mcols(AnnotatedMatches)["Matches_400bp"][,1]*400)/ncol(Pwm[[i]])
+
+    # Export the annotated matches
+    readr::write_tsv(as.data.frame(AnnotatedMatches), path = paste0(names(Pwm)[i], "_annotations.tsv"))
+    paths <- c(paths, paste0(names(Pwm)[i], "_annotations.tsv"))
+    }
+  annotations_files <- paths
+  DataSet <- data.frame()
+  for (file in annotations_files){
+    TF <- unlist(strsplit(file, "_annotations"))[1]
+    considered <- data.table::fread(file,
+                                    stringsAsFactors = TRUE)
+    considered$TF <- TF
+    considered$ProximalPromoter <- 0
+    considered$Promoter[considered$ProximalPromoter == 1] <- 0
+    considered$ProximalPromoter[considered$DistToClosestTSS > -proximalLength & considered$DistToClosestTSS <= 0] <- 1
+    NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
+    DataSet <- rbind(DataSet,
+                     considered[considered$ChIP.peak == 1,],
+                     considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
+        }
+  DataSet <- DataSet[, -c("Matches_20bp"), with = FALSE]
+  return(DataSet)
+}
+
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Train by extreme gradient boosting a model of classification of PWM matches between
+### true and false binding sites based on pattern-matching analysis results and contextual
+### genomic features.
+#========================================================================================#
+xgbmodeling <- function(data, TFspecific, TF4Validation){
+  data <- data[,-seq(1,6), with = FALSE]
+  #Put asides TF(s) that will be used for external validation
+  if (length(TF4Validation) > 0){
+    data <- data[!(data$TF %in% TF4Validation)]
+  } else {}
+  #Remove columns that do not have to be taken into account
+  if (!TFspecific){
+    if (length(grep(pattern = "TF", colnames(data))) > 0){
+      torm <- grep(pattern = "TF", colnames(data))
+      data <- data[, colnames(data)[torm] := NULL]
+    } else {}
+  } else {}
+  if (length(grep(pattern = "ClosestTSS", colnames(data))) > 0){
+    torm <- grep(pattern = "ClosestTSS", colnames(data))
+    data <- data[, colnames(data)[torm] := NULL]
+  } else {}
+  if (length(grep(pattern = "closestTTS", colnames(data))) > 0){
+    torm <- grep(pattern = "closestTTS", colnames(data))
+    data <- data[, colnames(data)[torm] := NULL]
+  } else {}
+  # Remove the infinite p-values associated to P-M,
+  # that occurs when the PWM is not flexible (i.e. is a consensus)
+  data$matchLogPval[which(is.infinite(data$matchLogPval))] <- -3
+  #Create dummy variables
+  dummy <- model.matrix(~.+0, data = data[,-c("ChIP.peak"),with=F])
+  data <- cbind(dummy, data[,"ChIP.peak"])
+  #Remove highly correlated features
+  descrCor <- cor(data, use = 'complete')
+  highlyCorDescr <- caret::findCorrelation(descrCor, cutoff = .95)
+  filteredDescr <- data[,colnames(data)[highlyCorDescr] := NULL]
+  NAs <- is.na(as.data.frame(filteredDescr))
+  NAs <- apply(NAs, 1, function(x) {if (length(which(x==TRUE)) > 0 ) {return(TRUE)} else {return(FALSE)} })
+  filteredDescr <- filteredDescr[!NAs,]
+
+  #Build a model by extreme gradient boosting
+  trainind <- sample(seq(1,nrow(filteredDescr)), nrow(filteredDescr)/2)
+  testind <- seq(1,nrow(filteredDescr))[seq(1,nrow(filteredDescr)) != trainind]
+
+  train <- filteredDescr[trainind,]
+  test <- filteredDescr[testind,]
+
+  labels <- train$ChIP.peak
+  ts_label <- test$ChIP.peak
+
+  new_tr <- model.matrix(~.+0,data = train[,-c("ChIP.peak"),with=F])
+  new_ts <- model.matrix(~.+0,data = test[,-c("ChIP.peak"),with=F])
+
+  dtrain <- xgboost::xgb.DMatrix(data = new_tr,label = labels)
+  dtest <- xgboost::xgb.DMatrix(data = new_ts,label=ts_label)
+
+  params <- list(booster = "gbtree", objective = "binary:logistic", eta=0.3, gamma=0, max_depth=6, min_child_weight=1, subsample=1, colsample_bytree=1)
+  xgbcv <- xgboost::xgb.cv( params = params, data = dtrain, nrounds = 100, nfold = 5, showsd = T, stratified = T, print.every.n = 10, early.stop.round = 20, maximize = F)
+
+  xgb1 <- xgboost::xgb.train(params = params, data = dtrain, nrounds = xgbcv$best_iteration, watchlist = list(val=dtest,train=dtrain), print.every.n = 10, early.stop.round = 10, maximize = F , eval_metric = "error")
+  xgbpred <- predict(xgb1,dtest)
+
+  results <- list(model = xgb1,
+                  validation = xgbpred,
+                  response = ts_label,
+                  pm = test$matchLogPval)
+  return(results)
+}
+

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>body{background-color:white;}</style>
+<script src="lib/htmlwidgets-1.5.1/htmlwidgets.js"></script>
+<script src="lib/d3-3.3.8/d3.min.js"></script>
+<script src="lib/dagre-0.4.0/dagre-d3.min.js"></script>
+<link href="lib/mermaid-0.3.0/dist/mermaid.css" rel="stylesheet" />
+<script src="lib/mermaid-0.3.0/dist/mermaid.slim.min.js"></script>
+<link href="lib/DiagrammeR-styles-0.2/styles.css" rel="stylesheet" />
+<script src="lib/chromatography-0.1/chromatography.js"></script>
+<script src="lib/DiagrammeR-binding-1.0.6.1/DiagrammeR.js"></script>
+
+</head>
+<body>
+<div id="htmlwidget_container">
+  <div id="htmlwidget-5b4de404164ba4c57ec1" style="width:960px;height:500px;" class="DiagrammeR html-widget"></div>
+</div>
+<script type="application/json" data-for="htmlwidget-5b4de404164ba4c57ec1">{"x":{"diagram":"<body>\n  <div class=\"mermaid\">\n    classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal <|-- Zebra\n    Animal : +int age\n    Animal : +String gender\n    Animal: +isMammal()\n    Animal: +mate()\n    class Duck{\n      +String beakColor\n      +swim()\n      +quack()\n      }\n    class Fish{\n      -int sizeInFeet\n      -canEat()\n      }\n    class Zebra{\n      +bool is_wild\n      +run()\n      }\n\n      callback Duck callback \"Tooltip\"\n      click Zebra \"http://www.github.com\" \"This is a link\"\n  <\/div>\n\n  <script>\n    var callback = function(){\n        alert('A callback was triggered');\n    }\n    var config = {\n      startOnLoad:true,\n      securityLevel:'loose',\n    };\n\n    mermaid.initialize(config);\n  <\/script>\n<\/body>"},"evals":[],"jsHooks":[]}</script>
+<script type="application/htmlwidget-sizing" data-for="htmlwidget-5b4de404164ba4c57ec1">{"viewer":{"width":450,"height":350,"padding":15,"fill":true},"browser":{"width":960,"height":500,"padding":40,"fill":false}}</script>
+</body>
+</html>

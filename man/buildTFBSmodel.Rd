@@ -4,10 +4,26 @@
 \alias{buildTFBSmodel}
 \title{Builds a predictive model of transcription factor binding site (TFBS) location}
 \usage{
-buildTFBSmodel(TFBSdata, TF4Validation = NULL, model_assessment = TRUE)
+buildTFBSmodel(
+  TFBSdata,
+  ChIPpeaks,
+  lengthChIPpeaks = 400,
+  TF4Validation = NULL,
+  model_assessment = TRUE
+)
 }
 \arguments{
-\item{TFBSdata}{A data.table object as output by the \code{\link[=getTFBSdata]{getTFBSdata()}} function.}
+\item{TFBSdata}{A named character vector as output by the \code{\link[=getTFBSdata]{getTFBSdata()}} function, defining the local paths
+to files encoding for the results of pattern-matching and geonmic feature extraction for the training TFs and/or
+studied TFs.}
+
+\item{ChIPpeaks}{A named character vector defining the local paths to BED files encoding the
+location of ChIP-peaks. The vector is named according to the training transcription factors
+that are described by the files indicated. \strong{Caution}: the names of the \code{ChIPpeaks} have to find
+a match with those of \code{TFBSdata}.}
+
+\item{lengthChIPpeaks}{Integer setting a fixed length for the ChIP-peaks, that are defined as the intervals of
+\code{lengthChIPpeaks} bp that are centered regions encoded in the \code{ChIPpeaks} files. Default velue = 400.}
 
 \item{TF4Validation}{NULL (by default) or character vector of names of training TFs. If NULL, the model performances will be
 assessed from a validation dataset obtained by sampling randomly 20\% of the potential binding sites of all the training TFs.
@@ -29,7 +45,30 @@ an algorithm of supervised machine learning, the extreme gradient boosting (XGBo
 is fed by a dataset of potential binding sites of training TFs either labelled as 'positive' or 'negative'
 (i.e. ChIP-seq 'validated' or 'not-validated' in a given condition).
 }
+\examples{
+genomic_data.ex <- c(CE = system.file("extdata/conserved_elements_example.bed", package = "Wimtrap"),
+                      DGF = system.file("extdata/DGF_example.bed", package = "Wimtrap"),
+                      DHS = system.file("extdata/DHS_example.bed", package = "Wimtrap"),
+                      X5UTR = system.file("extdata/x5utr_example.bed", package = "Wimtrap"),
+                      CDS = system.file("extdata/cds_example.bed", package = "Wimtrap"),
+                      Intron = system.file("extdata/intron_example.bed", package = "Wimtrap"),
+                      X3UTR = system.file("extdata/x3utr_example.bed", package = "Wimtrap")
+                     )
+imported_genomic_data.ex <- importGenomicData(biomart = FALSE,
+                                              genomic_data = genomic_data.ex,
+                                              tss = system.file("extdata/tss_example.bed", package = "Wimtrap"),
+                                              tts = system.file("extdata/tts_example.bed", package = "Wimtrap"))
+TFBSdata.ex <- getTFBSdata(pfm = system.file("extdata/pfm_example.pfm", package = "Wimtrap"),
+                           TFnames = c("PIF3", "TOC1"),
+                           organism = NULL,
+                           genome_sequence = system.file("extdata/genome_example.fa", package = "Wimtrap"),
+                           imported_genomic_data = imported_genomic_data.ex)
+TFBSmodel.ex <- buildTFBSmodel(TFBSdata = TFBSdata.ex,
+                               ChIPpeaks = c(PIF3 = system.file("extdata/PIF3_example.bed", package = "Wimtrap"),
+                                             TOC1 = system.file("extdata/TOC1_example.bed", package = "Wimtrap")),
+                               TF4Validation = "PIF3")
+}
 \seealso{
-\code{\link[=getTFBSdata]{getTFBSdata()}} for obtaining a training dataset and \code{\link[=predictTFBS]{predictTFBS()}} to predict transcription factor
+\code{\link[=getTFBSdata]{getTFBSdata()}} for obtaining the datasets and \code{\link[=predictTFBS]{predictTFBS()}} to predict transcription factor
 binding site location
 }

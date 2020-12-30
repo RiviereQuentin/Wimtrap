@@ -55,28 +55,27 @@ transcription start site (TSS) of each protein-coding transcripts of the organis
 }
 \description{
 Imports genomic data that will allow to define contextual features around matches with the primary motifs of
-transcrription factors. Data about gene structures might be optionally automatically downloaded from Biomart.
+transcription factors. Data about gene structures might be optionally automatically downloaded from Biomart.
 }
 \examples{
 ## Without automatic download from Biomart of data related to gene structure
-genomic_data.ex <- c(CE = system.file("conserved_elements_example.bed", package = "Wimtrap"),
-                      DGF = system.file("DGF_example.bed", package = "Wimtrap"),
-                      DHS = system.file("DHS_example.bed", package = "Wimtrap"),
-                      X5UTR = system.file("x5utr_example.bed", package = "Wimtrap"),
-                      CDS = system.file("cds_example.bed", package = "Wimtrap"),
-                      Intron = system.file("intron_example.bed", package = "Wimtrap"),
-                      X3UTR = system.file("x3utr_example.bed", package = "Wimtrap")
+genomic_data.ex <- c(CE = system.file("extdata/conserved_elements_example.bed", package = "Wimtrap"),
+                      DGF = system.file("extdata/DGF_example.bed", package = "Wimtrap"),
+                      DHS = system.file("extdata/DHS_example.bed", package = "Wimtrap"),
+                      X5UTR = system.file("extdata/x5utr_example.bed", package = "Wimtrap"),
+                      CDS = system.file("extdata/cds_example.bed", package = "Wimtrap"),
+                      Intron = system.file("extdata/intron_example.bed", package = "Wimtrap"),
+                      X3UTR = system.file("extdata/x3utr_example.bed", package = "Wimtrap")
                      )
 imported_genomic_data.ex <- importGenomicData(biomart = FALSE,
-                                              genomic_data = genomic_data.ex2,
-                                              tss = system.file("tss_example.bed", package = "Wimtrap"),
-                                              tts = system.file("tts.bed", package = "Wimtrap"))
-                                              genomic_data = genomic_data.ex)
+                                              genomic_data = genomic_data.ex,
+                                              tss = system.file("extdata/tss_example.bed", package = "Wimtrap"),
+                                              tts = system.file("extdata/tts_example.bed", package = "Wimtrap"))
 
 ##With automatic download from Biomart of data related to gene structure
-genomic_data.ex <- c(CE = system.file("conserved_elements_example.bed", package = "Wimtrap"),
-                     DGF = system.file("DGF_example.bed", package = "Wimtrap"),
-                     DHS = system.file("DHS_example.bed", package = "Wimtrap")
+genomic_data.ex <- c(CE = system.file("extdata/conserved_elements_example.bed", package = "Wimtrap"),
+                     DGF = system.file("extdata/DGF_example.bed", package = "Wimtrap"),
+                     DHS = system.file("extdata/DHS_example.bed", package = "Wimtrap")
                      )
 imported_genomic_data.ex <- importGenomicData(organism = "Arabidopsis thaliana",
                                               biomart = TRUE,

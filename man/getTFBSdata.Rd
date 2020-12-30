@@ -2,30 +2,30 @@
 % Please edit documentation in R/Wimtrap.R
 \name{getTFBSdata}
 \alias{getTFBSdata}
-\title{Builds a dataset that allows to train a model of transcription factor binding sites (TFBS)}
+\title{Performs pattern-matching and extraction of genomic features at match location}
 \usage{
 getTFBSdata(
-  ChIPpeaks,
   pfm = NULL,
+  TFnames = NULL,
   organism = NULL,
   genome_sequence = "getGenome",
   imported_genomic_data,
   matches = NULL,
   strandAsFeature = FALSE,
-  pvalThreshold = 0.001
+  pvalThreshold = 0.001,
+  short_window = 20,
+  medium_window = 400,
+  long_window = 1000
 )
 }
 \arguments{
-\item{ChIPpeaks}{A named character vector defining the local paths to BED files encoding the
-location of ChIP-peaks. The vector is named according to the transcription factors that are described
-by the files indicated.}
-
-\item{pfm}{Path to a file in the raw Jaspar format. This file describes the Pseudo Frequency Matrices (PFMs)
-of the primary motifs of the transcription factors whose ChIP-seq data are considered.
-IMPORTANT: In the file indicated, the PFMs have to be named by their cognate transcription
-factors. These names have to be consistent with those provided through the \emph{ChIP-peaks} argument.
-\emph{pfm} can be set to NULL if you prefer to use pattern-matching results from elsewhere (see the
+\item{pfm}{Path to a file including the position frequency or weight matrices (PFMs or PWMs) of the motifs recognized
+the considered transcription factors (training and/or studied TFs). This file can be in different formats, determined based
+on the file extension: raw pfm (".pfm"), jaspar (".jaspar"), meme (".meme"), transfac (".transfac"), homer (".motif") or
+cis-bp (".txt").
 argument \emph{matches}).}
+
+\item{TFnames}{names of the considered transcription factors among those described in the \code{pfm} file.}
 
 \item{organism}{Binomial name of the organism. Can be set to NULL if you provide the genome sequence
 (see the argument \emph{genome_sequence})}
@@ -60,15 +60,36 @@ sites and on which the genomic features are extracted.}
 sites and on which the genomic features are extracted.}
 }
 \value{
-A data.table describing the location of the potential binding sites in the 5 first columns, the
-results of pattern-matching (raw score and/or p-value), the genomic features extracted on short-, medium-
-and long-ranges windows centered on the potential binding sites, the label ('1' = "positive" = "ChIP-validated in
-a given condition" or '0' = "negative") and the name of the cognate transcription factor.
+A vector indicating the local paths to the tab-delimited files in which are written the results of pattern-matching
+and genomic feature extraction for each of the transcription factors considered. The 5 first fields of these files describe
+the location of the potential binding sites identified by pattern-matching. The following fields contain the
+raw score and/or p-value of the matches, and the the genomic features extracted at location of the matches
+on short-, medium- and long-ranges-centered windows the label ('1' = "positive" = "ChIP-validated in
+a given condition" or '0' = "negative") for the the training TFsr.
 }
 \description{
-\code{getTFBSdata} outputs a balanced dataset characterizing the genomic context
-around occurences of primary motifs that have been proved to be either TF-bound
-or TF-not bound sites according to ChIP-seq data obtained in given experimental conditions.
+\code{getTFBSdata} writes files encoding for datasets characterizing the genomic context
+around motif occurences along the genome for the considered transcription factors
+(training and/or studied TFs).
+}
+\examples{
+genomic_data.ex <- c(CE = system.file("extdata/conserved_elements_example.bed", package = "Wimtrap"),
+                      DGF = system.file("extdata/DGF_example.bed", package = "Wimtrap"),
+                      DHS = system.file("extdata/DHS_example.bed", package = "Wimtrap"),
+                      X5UTR = system.file("extdata/x5utr_example.bed", package = "Wimtrap"),
+                      CDS = system.file("extdata/cds_example.bed", package = "Wimtrap"),
+                      Intron = system.file("extdata/intron_example.bed", package = "Wimtrap"),
+                      X3UTR = system.file("extdata/x3utr_example.bed", package = "Wimtrap")
+                     )
+imported_genomic_data.ex <- importGenomicData(biomart = FALSE,
+                                              genomic_data = genomic_data.ex,
+                                              tss = system.file("extdata/tss_example.bed", package = "Wimtrap"),
+                                              tts = system.file("extdata/tts_example.bed", package = "Wimtrap"))
+TFBSdata.ex <- getTFBSdata(pfm = system.file("extdata/pfm_example.pfm", package = "Wimtrap"),
+                           TFnames = c("PIF3", "TOC1"),
+                           organism = NULL,
+                           genome_sequence = system.file("extdata/genome_example.fa", package = "Wimtrap"),
+                           imported_genomic_data = imported_genomic_data.ex)
 }
 \seealso{
 \code{\link[=importGenomicData]{importGenomicData()}} for importing genomic data and \code{\link[=buildTFBSmodel]{buildTFBSmodel()}} to train a predictive model of

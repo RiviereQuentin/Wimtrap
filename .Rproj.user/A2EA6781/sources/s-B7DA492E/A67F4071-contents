@@ -1,0 +1,83 @@
+genome <- Biostrings::readDNAStringSet("/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/genome_athal.fa")
+Biostrings::width(genome)
+#Let's focus on the 5*10⁶ firsrt bp of the chromosomes 1 and 2 of Arabidopsis thaliana.
+genome_example <- Biostrings::DNAStringSet(list(genome$`1`[1:(7*10^6)], genome$`2`[1:(7*10^6)]))
+names(genome_example) <- c(1,2)
+Biostrings::writeXStringSet(genome_example, "/home/quentin/Documents/Wimtrap/inst/extdata/genome_example.fa")
+
+tss <- read.table("/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/Structures/TSS.bed",
+                  header = FALSE,
+                  sep = "\t")
+tss$V1 <- wimtrap:::getRiddChr(tss$V1)
+tss_example <- tss[tss$V1 %in% c(1,2),]
+tss_example <- tss_example[tss$V3 <= (5*10^6),]
+tss_example$V1 <- droplevels(tss_example$V1)
+tss_example <- tss_example[!is.na(tss_example$V1),]
+write.table(tss_example, file = "/home/quentin/Documents/Wimtrap/inst/extdata/tss_example.bed", sep = "\t",
+col.names = F, row.names = F, quote = F)
+
+files_for_examples <- list(PIF3 ="/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/PIF3.bed",
+TOC1 = "/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/ChIP/TOC1.bed",
+tss = "/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/Structures/TSS.bed",
+tts = "/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/Structures/TTS.bed",
+x5utr = "/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/Structures/X5UTR_athal.bed",
+cds = "/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/Structures/CDS_athal.bed",
+intron = "/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/Structures/Intron_athal.bed",
+x3utr = "/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/Structures/X3UTR_athal.bed",
+conserved_elements = "/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/CNS.bed",
+DGF = "/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/DGF_Ath_seedling_7_day_old.bed",
+DHS ="/media/quentin/4640913C6C39FE83/wimtrap/MachineLearning/UpstreamWim/Source/DHS/DHS_Ath_seedlings_14_days.bed"
+)
+
+for (i in seq_along(files_for_examples)){
+  tss <- read.table(files_for_examples[[i]],
+                    header = FALSE,
+                    sep = "\t")
+  tss$V1 <- wimtrap:::getRiddChr(tss$V1)
+  tss_example <- tss[tss$V1 %in% c(1,2),]
+  tss_example <- tss_example[tss$V3 <= (5*10^6),]
+  tss_example$V1 <- droplevels(tss_example$V1)
+  tss_example <- tss_example[!is.na(tss_example$V1),]
+  fname <- paste0("/home/quentin/Documents/Wimtrap/inst/extdata/",
+                  names(files_for_examples)[i], "_example.bed")
+  write.table(tss_example, file = fname, sep = "\t",
+              col.names = F, row.names = F, quote = F)
+}
+
+genomic_data.ex <- paste0("/home/quentin/Documents/Wimtrap/inst/extdata/",
+                          names(files_for_examples)[c(5:11)], "_example.bed")
+names(genomic_data.ex) <- c("X5UTR", "CDS", "Intron", "X3UTR", "CE", "DGF", "DHS")
+
+imported_genomic_data.ex <- importGenomicData(biomart = FALSE,
+                                              genomic_data = genomic_data.ex,
+                                              tss = "/home/quentin/Documents/Wimtrap/inst/extdata/tss_example.bed" ,
+                                              tts = "/home/quentin/Documents/Wimtrap/inst/extdata/tts_example.bed")
+genomic_data.ex2 <- paste0("/home/quentin/Documents/Wimtrap/inst/extdata/",
+                          names(files_for_examples)[c(9:11)], "_example.bed")
+
+imported_genomic_data.ex2 <- importGenomicData(organism = "Arabidopsis thaliana",
+                                               biomart = TRUE,
+                                               genomic_data = genomic_data.ex2
+                                              )
+
+
+TFBSdata.ex <- getTFBSdata(pfm = "/home/quentin/Documents/Wimtrap/inst/extdata/pfm_example.jaspar",
+                           TFnames =c("PIF3", "TOC1"),
+                        organism = NULL,
+                        genome_sequence = "/home/quentin/Documents/Wimtrap/inst/extdata/genome_example.fa",
+                        imported_genomic_data = imported_genomic_data.ex,
+                        matches = NULL,
+                        strandAsFeature = FALSE,
+                        pvalThreshold = 0.001)
+
+
+model.ex <- buildTFBSmodel(TFBSdata = TFBSdata.ex,
+                           ChIPpeaks = c(PIF3 = "/home/quentin/Documents/Wimtrap/inst/extdata/PIF3_example.bed",
+                             TOC1 = "/home/quentin/Documents/Wimtrap/inst/extdata/TOC1_example.bed"
+                           ),
+                           lengthChIPpeaks = 400,
+                           TF4Validation = NULL,
+                           model_assessment = TRUE)
+test <- predictTFBS(model.ex,
+                    TFBSdata.ex,
+                    studiedTFs= "PIF3")
