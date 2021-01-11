@@ -10,46 +10,52 @@ importGenomicData(
   biomart = TRUE,
   tss = NULL,
   tts = NULL,
-  promoterLength = 2000,
-  downstreamLength = 1000,
-  proximalLength = 500
+  promoter_length = 2000,
+  downstream_length = 1000,
+  proximal_length = 500
 )
 }
 \arguments{
-\item{organism}{Binomial name of the organism. Can be set to NULL if you provide
+\item{organism}{Binomial name of the organism. Can be set to \code{NULL} if you provide
 the location of the transcription start sites (TSS), transcription termination site (TTS) and structures
-of the protein-coding genes of the organism (see the arguments  \emph{tss}, \emph{tts} and \emph{genomic_data})}
+of the protein-coding genes of the organism (see the arguments  \code{tss}, \code{tts} and \code{genomic_data}).}
 
 \item{genomic_data}{A named character vector defining the local paths to BED files describing genomic features.
 The vector has to be named according to the features described by the files indicated. All the data related to
-the chromatin state have to be specific of the samed condition. The proporties of the BED files are the following,
-depending on the type of feature: 'numeric' (the score field of the file is fulfilled or empty - if empty, the
-score will automatically be set to '1') or 'categorical' (the score field of the file is empty while its name field
-is fulfilled with the names of the categories) features.}
+the chromatin state have to be specific of the samed condition. The properties of the BED files are the following,
+depending on the type of feature: if 'numeric', the score field of the file is fulfilled or empty - if empty, the
+score will automatically be set to '1'; if 'categorical', the score field of the file is empty while its name field
+is fulfilled with the name of the categories of features. If you want to input the location of gene structures, name
+the file paths with exactly the following names: '\code{ProximalPromoter}', '\code{Promoter}', '\code{X5UTR}', '\code{X3UTR}',
+'\code{CDS}', '\code{Intron}', '\code{Downstream}'. If you use these names, the potential binding sites will be annotated only
+with the gene structure that their centers overlap. If you don not use these names, the data related to gene structure will
+be extracted in the same way than for the others (average of the signal on windows of 3 different lengths centered on the potential binding sites).
+'X5UTR' stands for 5'Untranslated Region, 'X3UTR' for '3'Untranslated Region', 'CDS' for coding sequence, 'Donwstream'
+for the regions downstream from the transcription termination site.}
 
 \item{biomart}{Logical. Should be automatically downloaded through biomart the location of the transcription
 start sites (TSS), transcription termination site (TTS) and structures of the protein-coding genes of the organism?
-Default is TRUE.}
+Default is \code{TRUE}.}
 
-\item{tss}{NULL (by default) or local path to a BED file defining the transcription stat site (TSS), name and
+\item{tss}{\code{NULL} (by default) or local path to a BED file defining the transcription stat site (TSS), name and
 orientation of each protein-coding transcript of the organism. The default value allows to download automatically
 these informations from biomart.}
 
-\item{tts}{NULL (by default) or local path to a BED file defining the transcription termination site (TTS), name
+\item{tts}{\code{NULL} (by default) or local path to a BED file defining the transcription termination site (TTS), name
 and orientation of each protein-coding transcript of the organism. The default value allows to download automatically
 these informations from biomart.}
 
-\item{promoterLength}{Length of the promoters. By default, the promoter is defined as the region spanning the 2000bp
+\item{promoter_length}{An integer setting the length of the promoters. By default, the promoter is defined as the region spanning the 2000bp
 upstream of the transcription start site (TSS).}
 
-\item{downstreamLength}{Length of the downstream regions. By default, the downstream region is defined as the region
+\item{downstream_length}{An integer setting the length of the downstream regions. By default, the downstream region is defined as the region
 spanning the 1000bp downstream of the transcription termnination site (TTS).}
 
-\item{proximalLength}{Length of the proximal promoters. By default, the proximal promoter is defined as the region
+\item{proximal_length}{An integer setting the length of the proximal promoters. By default, the proximal promoter is defined as the region
 spanning the 500bp upstream of the transcription start site (TSS).}
 }
 \value{
-A named list of GRanges objects. Each component of the list is named according to the nature of the genomic
+A named list of \code{GRanges} objects. Each component of the list is named according to the nature of the genomic
 data. The last two components describe respectively the position of the transcritpion termination site (TTS) and the
 transcription start site (TSS) of each protein-coding transcripts of the organism considered.
 }

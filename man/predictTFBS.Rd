@@ -4,30 +4,37 @@
 \alias{predictTFBS}
 \title{Predicts transcription factor binding sites}
 \usage{
-predictTFBS(TFBSmodel, TFBSdata, studiedTFs, show_annotations = FALSE)
+predictTFBS(
+  TFBSmodel,
+  TFBSdata,
+  studiedTFs = NULL,
+  show_annotations = FALSE,
+  score_threshold = 0.5
+)
 }
 \arguments{
-\item{TFBSmodel}{A xgb.Booster object as output by the function \code{\link[=buildTFBSmodel]{buildTFBSmodel()}} or any predictive model
-that can be used by the function \code{\link[stats:predict]{stats::predict()}}.}
+\item{TFBSmodel}{A \code{xgb.Booster} object as output by the function \code{\link[=buildTFBSmodel]{buildTFBSmodel()}}.}
 
 \item{TFBSdata}{A named character vector as output by the \code{\link[=getTFBSdata]{getTFBSdata()}} function, defining the local paths
-to files encoding for the results of pattern-matching and geonmic feature extraction for the training TFs and/or
+to files encoding for the results of pattern-matching and genomic feature extraction for the training TFs and/or
 studied TFs.}
 
 \item{studiedTFs}{A character vector setting the names of the studied transcription factors (for which the
 location of the binding sites has to be predicted). This names have to match with one of the names of the
 \code{TFBSdata} argument.}
 
-\item{show_annotations}{Logical. Default = FALSE. If TRUE, the annotation of the potential binding sites
+\item{show_annotations}{A logical. Default = \code{FALSE}. If \code{TRUE}, the annotation of the potential binding sites
 with the genomic features extracted from their genomic regions will be output.}
+
+\item{score_threshold}{A numeric (comprised between 0 and 1). Sets the minimum prediction score output by the
+\code{TFBSmodel} to predict a potential binding site as a binding site of a studied transcription factor in the
+studied condition. Higher the prediction score, higher is the specificity and lower the sensitivity. Default = 0.5.}
 }
 \value{
-A named list of data.table objects corresponding to the predictions for each studied transcription factor.
-The list is named according the the name of the transcription factors. The data.table objects describe, for the potential
-binding sites, the location, the closest gene (relatively to the transcript start site) and the prediction score.
-Higher the prediction score, higher the chance of the potential binding site to be a binding site of the studied
-condition in the studied condition. Consider as minimal threshold, the score of 0.5 and level it up for increasing
-the specificity. Optionally, the data.table might include the genomic features.
+A \code{data.table} listing the predicted binding sites. The '\code{TF}' column annotates the potential binding sites
+with their cognate transcription factor. Additionally, the \code{data.table} describes, for the potential
+binding sites, the chromosomic coordinates, the closest transcript (relatively to the transcript start site) and the prediction score.
+Optionally, the \code{data.table} might also include the genomic features used to make the predictions.
 }
 \description{
 Predicts the binding sites of studied transcription factors in a studied condition
@@ -36,7 +43,7 @@ located by a prior pattern-matching analysis and annotated with genomic features
 }
 \details{
 Remark: the features included in the datasets encoded in the files given by \code{TFBSdata} have to correspond
-to those integrated by the predictive model set by \code{TFBSdata}.
+to those integrated by the predictive model set by \code{TFBSmodel}.
 }
 \examples{
 genomic_data.ex <- c(CE = system.file("extdata/conserved_elements_example.bed", package = "Wimtrap"),
@@ -59,20 +66,18 @@ TFBSdata.ex <- getTFBSdata(pfm = system.file("extdata/pfm_example.pfm", package 
 TFBSmodel.ex <- buildTFBSmodel(TFBSdata = TFBSdata.ex,
                                ChIPpeaks = c(PIF3 = system.file("extdata/PIF3_example.bed", package = "Wimtrap"),
                                              TOC1 = system.file("extdata/TOC1_example.bed", package = "Wimtrap")),
-                               TF4Validation = "PIF3")
-                               TF4Validation = "PIF3")
+                               TFs_validation = "PIF3")
 PIF3BS.predictions <- predictTFBS(TFBSmodel.ex,
                                   TFBSdata.ex,
                                   studiedTFs = "PIF3")
-##To get the transcripts whose expression is potentially regulated by PIF3 using as prediction score
-##threshold of 0.5 to predict the binding sites in the studied condition, do as follows:
-PIF3_regulated.predictions <- as.character(PIF3BS.predictions$PIF3$gene[!duplicated(PIF3BS.predictions$PIF3$prediction.score >= 0.5)])
+##To get the transcripts whose expression is potentially regulated by PIF3 do as follows:
+PIF3_regulated.predictions <- as.character(PIF3BS.predictions$gene[!duplicated(PIF3BS.predictions)])
 ###If you want to consider only the gene model,
-###then do as followq:
+###then do as follows:
 PIF3_regulated.predictions <- unlist(strsplit(PIF3_regulated.predictions, "[.]"))[seq(1, 2*length(PIF3_regulated.predictions),2)]
 PIF3_regulated.predictions <- PIF3_regulated.predictions[!duplicated(PIF3_regulated.predictions)]
 }
 \seealso{
-\code{\link[=importGenomicData]{importGenomicData()}} for importing genomic data and \code{\link[=buildTFBSmodel]{buildTFBSmodel()}} to train a predictive model of
-transcription factor binding sites.
+\code{\link[=importGenomicData]{importGenomicData()}} for importing genomic data, \code{\link[=buildTFBSmodel]{buildTFBSmodel()}} to train a predictive model of
+transcription factor binding sites, and \code{\link[=plotPredictions]{plotPredictions()}} to vizualize the results for a given potential target gene.
 }

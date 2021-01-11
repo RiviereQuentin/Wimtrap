@@ -1,7 +1,0 @@
-<body>
-  <div class="mermaid">
-  graph TD
-    a(whatever) --> b[whatever]
-    b --> c
-  </div>
-</body>

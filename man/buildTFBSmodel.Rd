@@ -7,9 +7,10 @@
 buildTFBSmodel(
   TFBSdata,
   ChIPpeaks,
-  lengthChIPpeaks = 400,
-  TF4Validation = NULL,
-  model_assessment = TRUE
+  ChIPpeaks_length = 400,
+  TFs_validation = NULL,
+  model_assessment = TRUE,
+  xgb_modeling = TRUE
 )
 }
 \arguments{
@@ -22,27 +23,32 @@ location of ChIP-peaks. The vector is named according to the training transcript
 that are described by the files indicated. \strong{Caution}: the names of the \code{ChIPpeaks} have to find
 a match with those of \code{TFBSdata}.}
 
-\item{lengthChIPpeaks}{Integer setting a fixed length for the ChIP-peaks, that are defined as the intervals of
-\code{lengthChIPpeaks} bp that are centered regions encoded in the \code{ChIPpeaks} files. Default velue = 400.}
+\item{ChIPpeaks_length}{An integer setting a fixed length for the ChIP-peaks, that are defined as the intervals of
+\code{ChIPpeaks_length} bp that are centered on the regions encoded in the \code{ChIPpeaks} files. Default velue = 400.}
 
-\item{TF4Validation}{NULL (by default) or character vector of names of training TFs. If NULL, the model performances will be
+\item{TFs_validation}{\code{NULL} (by default) or a character vector of names of training TFs. If \code{NULL}, the model performances will be
 assessed from a validation dataset obtained by sampling randomly 20\% of the potential binding sites of all the training TFs.
-Otherwise the model will be validated with the data related to the training TFs named in the \emph{TF4Validation} parameter and
-trained using the remaining training TFs. Please note, that in the last case, the \emph{TFBSdata} table must contain a
-column named 'TF'.}
+Otherwise the model will be validated with the data related to the training TFs named in the \code{TFs_validation} parameter and
+trained using the remaining training TFs.}
 
-\item{model_assessment}{Logical. If TRUE (by default), 1) the imortance of features is represented and, based on the
-validation dataset, 2) the confusion matrix is printed and 3) the ROC and AUC are plotted.}
+\item{model_assessment}{A logical. If \code{TRUE} (by default), 1) the imortance of features is represented,
+2) the confusion matrix is printed and 3) the ROC and AUC are plotted.}
+
+\item{xgb_modeling}{A logical. If \code{TRUE} (by default), the step of modeling will be achieved and a model will be
+output. If \code{FALSE}, only the steps of balancing, labelling and splitting between a training and a validation
+datasets will be carried on and the output will be a list of two \code{data.table} corresponding to the training and validation
+datasets.}
 }
 \value{
-An object of xgb.Booster class.
+An object of \code{xgb.Booster} class if \code{xgb_modeling = TRUE}. A list of two \code{data.table} corresponding
+each to the training and validation datasets otherwise.
 }
 \description{
 \code{buildTFBSmodel} learns (and optionally validates) a predictive model of transcription factor(TF) binding sites based
 on the integration of genomic features extracted at the location of potential binding
 sites identified by a prior analysis (such as pattern-matching). This function implements
 an algorithm of supervised machine learning, the extreme gradient boosting (XGBoost), which
-is fed by a dataset of potential binding sites of training TFs either labelled as 'positive' or 'negative'
+will be fed by a dataset of potential binding sites of training TFs either labelled as 'positive' or 'negative'
 (i.e. ChIP-seq 'validated' or 'not-validated' in a given condition).
 }
 \examples{
@@ -66,7 +72,7 @@ TFBSdata.ex <- getTFBSdata(pfm = system.file("extdata/pfm_example.pfm", package 
 TFBSmodel.ex <- buildTFBSmodel(TFBSdata = TFBSdata.ex,
                                ChIPpeaks = c(PIF3 = system.file("extdata/PIF3_example.bed", package = "Wimtrap"),
                                              TOC1 = system.file("extdata/TOC1_example.bed", package = "Wimtrap")),
-                               TF4Validation = "PIF3")
+                               TFs_validation = "PIF3")
 }
 \seealso{
 \code{\link[=getTFBSdata]{getTFBSdata()}} for obtaining the datasets and \code{\link[=predictTFBS]{predictTFBS()}} to predict transcription factor

@@ -4,15 +4,13 @@ author:
 - Rivière Quentin <qri@hotmail.be>
 - Matthieu Defrance <matthieu.dc.defrance@ulb.be>
 - Massimiliano Corso, Madalina Ciortan, Nathalie Verbruggen
-date: '`r format(Sys.Date(), "%B %d %Y")`'
-output: 
-  html_document:
-    toc: true
+output:
+  html_document: 
+    theme: paper
+    toc: yes
     toc_depth: 2
-vignette: >
-  %\VignetteIndexEntry{Wimtrap}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
+vignette: |
+  %\VignetteIndexEntry{Wimtrap} %\VignetteEngine{knitr::rmarkdown} %\VignetteEncoding{UTF-8}
 ---
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
@@ -28,13 +26,25 @@ Wimtrap is a R package that allows to predict the location of transcription fact
 
 # 2. Installation of Wimtrap
 
-```{r, eval=FALSE}
-#Pre-requisite: devtools
-if(!require("devtools")){
-  install.packages("devtools")
+```{r, warning=FALSE, eval = FALSE}
+#Pre-requisite: remotes & utils & BiocManager packages
+if(!require("remotes", quietly = TRUE)){
+  install.packages("remotes")
 }
+if(!require("utils", quietly = TRUE)){
+  install.packages("utils")
+}
+if(!require("e1071", quietly = TRUE)){
+  install.packages("e1071")
+}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install()
+
 #Wimtrap
-devtools::install_github("RiviereQuentin/Wimtrap")
+BiocManager::install("RiviereQuentin/Wimtrap",
+                     dependencies = TRUE,
+                     build_vignettes = TRUE)
 ```
 
 # 3. Presentation of the package
@@ -48,6 +58,8 @@ Wimtrap makes available **4 functions** in order to **build** a **predictive mod
 | - **Location** of the **potential binding sites** of the training and studied transcription factor(s) along the genome <br /> - **Genomic feature extraction** at the location of the potential binding sites, performed specifically to the training (studied) organism-condition for the training (studied) transcription factor(s) <br /> - **Feature scaling** and **categorical** variables **encoding** | `getTFBSdata()` |
 | From the dataset related to the training transcription factor(s): <br /> - **Labeling** of the potential binding sites based on ChIP-seq/chip data obtained in the training organism-condition <br /> - **Dataset balancing** <br /> - **Machine learning** (XG Boosting) <br /> - **Model evaluation** | `buildTFBSmodel()` |
 | From the dataset related to the studied transcription factor(s): <br /> - **Prediction** of the **location** of the **binding sites** and gene targets of the studied transcription factor(s) in the studied organism-condition | `predictTFBS()` |
+
+In addition, the package includes the `carepat()` function that allows to quickly get predictions of location of transcription factor binding sites in *Arabidopsis thaliana* and *Solanum lycopersicum*, in various conditions. This function makes use of pre-build general models obtained from seedling and flowers of Arabidopsis and ripening fruits of tomato.
 
 ## 3.2 Inputs and outputs
 
@@ -181,33 +193,361 @@ This diagram illustrates how to practically address a problematic using Wimtrap:
 
 12. Use the predictions (1) to infer the potential gene targets of the studied transcription factor, (2) to assess the over-representation of potential binding sites among the promoters of co-regulated genes, (3) to compare the regulatory regions of different genes
 
-# 4. Example: prediction of the gene targets of CCA1 in the roots of *Arabidopsis thaliana*
+# 4. Example: prediction of the binding sites of CCA1 in the roots of *Arabidopsis thaliana*
 
-* For 7-days old roots of *Arabidopsis thaliana*, we could find the results of [DNAseI-seq](http://plantregmap.gao-lab.org/download_ftp.php?filepath=08-download/Arabidopsis_thaliana/DHS/DHS_Ath_root_7_days.bed) and [digital genomic footrprinting](http://plantregmap.gao-lab.org/download_ftp.php?filepath=08-download/Arabidopsis_thaliana/DGF/DGF_Ath_root_7_days.bed) on the [PlantTFDB](http://plantregmap.gao-lab.org/) database. These data will allow to extract genomic features of high predictivity of transcription factor binding sites. The results of DNAseI-seq consist of the location of regions of open chromatin, which are scored according to their degree of opening. Digital genomic footprinting is a method that is used to predict binding events on the DNA based on the protective effect for DNA of bound proteins against DNAseI cleavage on regions of open chromatin.
-* We 
+## 4.1. Use the `carepat()` function to apply a pre-built general model
 
+Predictions for CCA1 binding sites in roots of *Arabidopsis thaliana* can be quickly obtained using a pre-built model obtained from seedlings of Arabidopsis. It is a general model, trained from data related to an extensive set of transcription factors.
+```{r, message=FALSE, warning=FALSE, eval=FALSE}
+CCA1predictions.roots <- carepat(organism = "Arabidopsis thaliana",
+                                  condition = "roots",
+                                  TFnames = "AT2G46830")#Use the AGI code of CCA1 to retrieve automatically its motif from PlantTFDB
+```
 
+Predictions in other conditions (non-hair part of roots, flowers, seed coats, heat-shocked seedlings, seedlings exposed to various light treatments) can be obtained in Arabidopsis using `carepat()`. It is also possible to study the immature fruits and ripening fruits in *Solanum lycopersicum*.
 
-```{r}
+In the section 4.2., we will illustrate the full workflow of Wimtrap from scratch and will build a TF-specific model
+obtained based on data related to CCA1 only.
+
+The output of `carepat()` is a `data.table` identic to that generated by `PredictTFBS()`. In the section 4.3., we provide some examples to manipulate such an output.
+
+## 4.2. Build and apply a CCA1-specific model
+
+### 4.2.1 Get the pre-requisites
+
+**Search for predictive data related to the studied organism-condition (roots of Arabidopsis)**
+
+* For 7-days old roots of *Arabidopsis thaliana*, we could find the results of [DNAseI-seq](http://plantregmap.gao-lab.org/download_ftp.php?filepath=08-download/Arabidopsis_thaliana/DHS/DHS_Ath_root_7_days.bed) and [digital genomic footrprinting](http://plantregmap.gao-lab.org/download_ftp.php?filepath=08-download/Arabidopsis_thaliana/DGF/DGF_Ath_root_7_days.bed) on the [PlantTFDB](http://plantregmap.gao-lab.org/) database (Sullivan et al., 2014; Jin et al., 2017). These data will allow to extract genomic features of high predictivity of transcription factor binding sites. The results of DNAseI-seq consist of the location of regions of open chromatin, which are scored according to their degree of opening. Digital genomic footprinting is a method that is used to predict binding events on the DNA based on the protective effect for open DNA of bound proteins against DNAseI cleavage.
+* We could also find condition-independent data related to the *Arabidopsis thaliana* species: 
+  
+  + the location of conserved non-coding elements along the genome, from 3 different sources (Baxter et al., 2012; Haudry et al., 2013; Thomas et al., 2007).
+  + the transcript models of *Arabidopsis thaliana*, which we will download from [biomart](https://plants.ensembl.org/biomart/martview/38bb52eb3a8baf556fd902a9cdf0519e) (Kinsella et al., 2011) using the `importGenomicData()` function.
+
+**Search for training data**
+
+* We did not find any ChIP-seq/chip data obtained from roots of *Arabidopsis thaliana*: we will have to train a model from a training condition different from the studied one.
+* We propose to build a model based on data related to seedlings of *Arabidopsis thaliana*:
+
+  + ChIP-seq data about CCA1 in seedlings were published (Nagel et al., 2015): this will allow us to build a TF-specific model.
+  + As for roots, we could find the results of [DNAseI-seq](http://plantregmap.gao-lab.org/download_ftp.php?filepath=08-download/Arabidopsis_thaliana/DHS/DHS_Ath_seedling_normal.bed) and [digital genomic footrprinting](http://plantregmap.gao-lab.org/download_ftp.php?filepath=08-download/Arabidopsis_thaliana/DGF/DGF_Ath_seedling_7_day_old_Control.txt) on the [PlantTFDB](http://plantregmap.gao-lab.org/) database (Zhang et al., 2012; Sullivan et al., 2014; Jin et al., 2017).
+
+**Get the Pseudo Weight Matrix (PWM) of the motif of CCA1**
+
+CCA1 can bind the evening element, for which a PWM is made available on [PlantTFDB](http://planttfdb.gao-lab.org/motif/Ath/AT2G46830.meme) (Jin et al., 2017).
+
+**Download the collected data**
+
+You can download all the data introduced above from the github repository [RiviereQuentin/Wimtrap](https://github.com/RiviereQuentin/Wimtrap).
+
+```{r, warning=FALSE, message=FALSE, eval=FALSE}
+if(!require(utils)){
+  install.packages(pkgs = "utils")
+}
+library(utils)
+download.file(url = "https://github.com/RiviereQuentin/Wimtrap/raw/main/example.zip",
+              destfile = "Wimtrap_ex.zip")
+unzip(zipfile = "Wimtrap_ex.zip")
+```
+
+### 4.2.2. Apply the functions defined in the package
+
+We are now ready to open our R session and apply the Wimtrap workflox to get predictions of the binding sites of CCA1 along the genome in 7-days old roots of *Arabidopsis thaliana*.  
+
+1. `importGenomicData()` to import the genomic data, for the seedlings and the roots of Arabidopsis:
+
+```{r, message=FALSE, warning=FALSE}
 library(Wimtrap)
+
+#The file paths to the genomic data, encoded in BED or GTF/GFF files, are input through the `genomic_data` argument.
+#Each file is named according to the feature that it allows to define.
+#Remark: the chromosomes are named, in the chrom field of the BED files, according to their number. 
+#This number might be preceded by the prefix 'chr' (case-insensitive). For chromosome 1,  'chr1', 'CHR1', 'Chr1' 
+#or '1' are accepted.
+#Remark: the regions described by a file are all assigned to a score of '1' if the score field is empty (cf. CNS).
+# As for the genomic intervals that are not included in a file, they are all assigned to a null score.
+
+imported_genomic_data.roots <- importGenomicData(organism = "Arabidopsis thaliana", 
+                                                 genomic_data = c(
+                                                   DHS = "example/DHS_athal_roots_7_days.bed",
+                                                   DGF = "example/DGF_athal_roots_7_days.bed",
+                                                   CNS = "example/CNS_athal.bed"
+                                                 ))
+imported_genomic_data.seedlings <- importGenomicData(organism = "Arabidopsis thaliana",
+                                                     genomic_data = c(
+                                                      DHS = "example/DHS_athal_seedlings_normal.bed",
+                                                      DGF = "example/DGF_athal_seedlings_7_days.bed",
+                                                      CNS = "example/CNS_athal.bed"
+                                                 ))
+```
+
+2. `getTFBSdata()` to build the dataset of potential binding sites of CCA1 both for the 7-days old roots and the seedlings of *Arabidopsis thaliana*: locate the matches with the evening element along the genome (default p-value = 0.001), extract the average signal from the predictive genomic data at location of the matches with the evening elements on centered windows of 3 different lengths (default = 20bp, 400bp and 1000bp) and finally, scale the extracted features between 0 and 1. To allow better comparison of the genomic features across organisms and conditions, the scaling is applied after detection of the outliers ($>median+1.5*Interquartile range$ or $<median-1.5*Interquartile range$), whose values are replaced by $median+1.5*Interquartile range$ or $median-1.5*Interquartile range$.
+
+The function will print a summary of the datasets of potential binding sites.
+
+```{r, warning=FALSE, message=FALSE}
+#The motif representing the evening element is encoded in a file in raw pfm format. Other formats are allowed:
+#meme, jaspar, transfac, homer and cis-bp.
+
+#You must specify the name of the transcription factor (here CCA1) as it appears in the file giving
+#the motif throught the `TFnames` argument.
+
+#The genome sequence of the considered organism(s) might be automatically downloaded if you provide
+#their names through the `organism` argument.
+#If you provide the genome sequence from a FASTA file, make sure that the chromosomes are named according to their number. 
+#This number might be preceded by the prefix 'chr' (case-insensitive). For chromosome 1,  'chr1', 'CHR1', 'Chr1' 
+#or '1' are accepted.
+
+CCA1data.roots <- getTFBSdata(pfm = "example/PFMs_athal.pfm",
+                              TFnames = "CCA1",
+                              organism = "Arabidopsis thaliana",
+                              imported_genomic_data = imported_genomic_data.roots)
+CCA1data.seedlings <- getTFBSdata(pfm = "example/PFMs_athal.pfm",
+                              TFnames = "CCA1",
+                              organism = "Arabidopsis thaliana",
+                              imported_genomic_data = imported_genomic_data.seedlings)
+```
+
+3. `buildTFBSmodel` to get the predictive classifier and, optionally, evaluate the model. 
+
+As we consider only one transcription factor here (CCA1), we will only be able to perform an 'internal' validation:  balancing of the dataset (we will randomly select as many potential binnding sites that do not overlap a ChIP-peak of CCA1 in Arabidopsis seedlings than there are potential binding sites that do overla a ChIP-peak), we will use 80% of the binding sites to build the model and 20% to assess the model. However, if you are considering a set of training transcripion factors, it is best to select a few for performing an 'external' validation (cf. `TF4Validation` argument). These 'validation' transcription factors will be excluded from the training of the model and, after balancing of their cognate datasets, .
+
+For the purposes of evaluation, the function will:
+
+* plot the [ROC](https://developers.google.com/machine-learning/crash-course/classification/roc-and-auc) achieved by the model in comparison with that achieved by the pure pattern-matching (i.e. when considering solely the p-value of the match). The [area under the ROC](https://developers.google.com/machine-learning/crash-course/classification/roc-and-auc) of the model is written along the Y-axis.
+  
+  The ROC allows to illustrate the evaluation of the performances of a predictive method according to the minimum score threshold that is used to predict a potential binding site as a binding site (cf. the 'prediction score' for the modeling approach and the 'p-value of the match' for the pattern-matching analysis). The performances are evaluated in terms of sensitivity (Y-axis) and 1-specificity (X-axis), where $sensitity=TP/(TP+FN)$ and $specificity=TN/(TN+FP)$, with TP: true positive = number of ChIP-validated potential binding that have been correctly predicted as a binding site; FN: false negative = number of ChIP-validated potential binding that have been incorrectly predicted as not being a binding site; TN: true negative = number of ChIP-invalidated potential binding sites that have been correctly predicted as not being a binding site; FP: false positive = number of ChIP-invalidated potential binding sites that have been incorrectly predicted as a binding site.
+  
+  The area under the ROC (AUC) is an appropriate metrics for comparing the performances of predictive methods based on balanced datasets. Higher the AUC, more performant is a classifier. The AUC is comprised between 0 and 1 (a random guess corresponding to an AUC of 0.5).
+
+* plot the [feature importance](https://xgboost.readthedocs.io/en/latest/tutorials/model.html), in terms of gain. The predictive model, trained by extreme gradien boosting, corresponds to an ensembl of decision trees that collectively 'vote' to predict the binding sites: their prediction scores are averaged. The gain of a feature is calculated by summing, on each decision tree, the increase of accuracy that is obtained on each branch that use this feature to classify the potential binding sites into the two classes considered ('binding site' or 'not binding site'). The gain is expressed relatively to all the features integrated by the model so that the total of the feature gains equal to 1.
+
+  The features are named as 'genomicdata_windowlength', i.e. from the genomic data that have been used to extract the feature (DHS, CNS,..) and the window length on which they have been extracted (by default 20bp, 400bp or 1000bp). For instance, we will obtain the feature 'DHS_20bp' for the feature obtained by averaging the signal of DNAseI-sensitity on the windows of 20bp centered on the potential binding sites. Noteworthy, the features related to the gene structures ('Promoter', 'CDS',..) are only named 'genomicdata' because we consider only the structure on whiche the center of the potential binding sites are located (for instance 'Promoter' = 1 if the center of the potential binding site is located on the promoter of the potential gene target; = 0 otherwise).
+
+* print on the screen the [confusion matrix](https://www.dataschool.io/simple-guide-to-confusion-matrix-terminology/) obtained using a prediction score threshold of 0.5, that gives the FP, FN, TP and TN associated to the classification of the potential binding sites of the balanced 'validation' dataset by the model.
+
+```{r, warning=FALSE, message=FALSE}
+# Name the `ChIPpeaks` argument according to the training transcription factor(s)
+
+CCA1model <- buildTFBSmodel(CCA1data.seedlings, 
+                            ChIPpeaks = c(CCA1 = "example/CCA1_athal_seedlings.narrowPeak"),
+                            model_assessment = TRUE) 
+```
+
+4. `predictTFBS()` to predict the targets of CCA1 in roots of Arabidopsis thaliana with a given prediction score threshold (default = 0.5).
+
+```{r, warning=FALSE, message=FALSE}
+CCA1.predictions.roots <- predictTFBS(CCA1model, CCA1data.roots)
+head(CCA1.predictions.roots)
+```
+
+The output is a `data.table` indicating for each predicted binding site:
+* the coordinates ('`seqnames`' = chromosome name, '`start`' and '`end`'= start and end on the chromosome), the width ('`width`') and the orientation of the predicted binding sites ('`strand`');
+* the name of the potential transcript targets, '`transcript`' (the transcript whose the transcription start is the closest);
+* the prediction score (`prediction.score`) output by the model (comprised between the minimum score threshold and 1);
+* the name of the related transcription factor (`TF`).
+
+Optionally, the `data.table` might include the annotations of the predicted binding sites with the predictive features. To obtain this information, call `predictTFBS()` while setting `show_annotations = TRUE`.
+
+```{r, warning=FALSE, message=FALSE, eval =FALSE}
+CCA1.annotations.predictions.roots <- predictTFBS(CCA1model, CCA1data.roots, show_annotations = TRUE)
+head(CCA1.annotations.predictions.roots)
+```
+
+## 4.3. Manipulate the predictions
+  
+**4.3.1. Filter the predictions**
+
+It is possible to further filter the predicted binding sites with simple manipulations of the `data.table` output by `predictTFBS()`, according for instance to the related transcription factor (here, we considered only CCA1 but we could have obtained predictions for multiple transcription factors), the potentiel target or the predictive features, the prediction score or the predictive features.
+
+As a first example, we will verify if there are predicred binding sites on *AT3G46640*, which is a known target of CCA1.
+```{r, warning=FALSE, message=FALSE}
+OnAT3G46640 <- CCA1.predictions.roots[grep(pattern = "AT3G46640", CCA1.predictions.roots$transcript),]
+print(OnAT3G46640)
+```
+We can observe that, as expected, two binding sites have been predicted, with very high prediction scores (almost 1, the maximum).
+
+As a second example, we will select only the binding sites that overlap a conserved non-coding element (CNS). To do so, we will need to consider the `data.table` obtained with `predictTFBS()` with the option `show_annotations = TRUE`. We will put as condition that the feature `CNS_20bp` (here, the percentage of coverage by CNS of the windows of 20bp centered on the predicted binding sites) is superior to 0. Such an approach can be meaningful because the phylogenetic footprint is a good indicator of functionality (regulatory role) of the binding sites (Rister et al., 2010), as is the location on a proximal promoter (Li et al., 2019). The model does not take indeed into account whether the recruitment of the transcription on a predicted binding site is likely to impact or not the expression of the target gene.
+  
+```{r, warning=FALSE, message=FALSE}
+OnCNS <- CCA1.annotations.predictions.roots[CCA1.annotations.predictions.roots$CNS_20bp > 0,]
+head(OnCNS)
+```
+Noteworthy, the `data.table` output by `predictTFBS()` can easily be turned into a `GRanges` object using the `GenomicRanges::makeGRangesFromDataFrame()` function. This allows the manipulation of the genomic intervals and, for instance, select binding sites based on genomic coordinates of interest.
+  
+Let's say that we want to select the binding sites located on chromosome 2, from 10000 to 20000bp and chromosome 3, from 30000 to 60000, on both strands:
+```{r, warning=FALSE, message=FALSE}
+library(GenomicRanges)
+
+#Check before how are named the chromosomes in the predictions
+levels(CCA1.predictions.roots$seqnames)
+
+#Chromosome 2 is named '2' chromosome 3, '3'
+
+RegionsOfInterest <- GRanges(seqnames = c(2,3),#names of the chromosomes of interest
+                             ranges = c(IRanges(start = 10000, end = 20000), 
+                                        IRanges(start = 30000, end = 60000)),
+                             strand = "*") #indicates that the strand does not matter
+
+OnRegionsOfInterest <- subsetByOverlaps(makeGRangesFromDataFrame(CCA1.predictions.roots, keep.extra.columns = TRUE), 
+                                        RegionsOfInterest)
+print(OnRegionsOfInterest)
+```
+We can observe that there are three predicted binding sites on the 3:3000-60000 region and none on the 2:10000-20000.
+  
+**4.3.2. Infer the potential targets of the studied transcription factors in the condition considered**
+
+A transcript is considered as a potential target if its transcription start site is the closest to a predicted binding site of a studied transcription factor in the condition considered. The whole set of potential transcript targets can be found in the column `transcript` of the `data.table` output by `predictTFBS()`, after selecting the binding sites related to the transcription factor of interest (which is necessary to do in the case where you obtained predictions for several transcription factors).
+```{r, warning=FALSE, message=FALSE}
+CCA1.potentialtargets <- CCA1.predictions.roots$transcript[CCA1.predictions.roots$TF=="CCA1"] #Be sure to select the transcription of interest
+CCA1.potentialtargets <- CCA1.potentialtargets[!duplicated(CCA1.potentialtargets)] #remove the duplicated
+head(CCA1.potentialtargets)
+```
+If you want to simplify the predictions at the gene level, eliminate the ".[1..9]" part of the transcript names:
+```{r, warning=FALSE, message=FALSE}
+CCA1.potentialtargets <- unlist(strsplit(as.character(CCA1.potentialtargets), "[.]"))[seq(1,2*length(CCA1.potentialtargets),2)]
+CCA1.potentialtargets <- CCA1.potentialtargets[!duplicated(CCA1.potentialtargets)]
+head(CCA1.potentialtargets)
+```
+Whenever possible, we encourage you to further filter the predicted gene targets based on expression data that allow to assess the regulatory role of the studied transcription factor(s).
+
+The prediction of the ene targets of a transcription factor can be used to get functional insights of the latter, by performing a Gene Ontolgy or Gene Sets (as sets of co-expressed or co-regulated genes) enrichment analyses.
+
+**4.3.3. Plot the location of the predicted binding sites on a gene of interest**
+
+We can vizualize, on a potential gene target of interest, the location and the prediction score of the predicted binding sites of the studied transcription factors, in the condition considered (here, of CCA1 in roots). Additionally, you can plot the signals of genomic-wide data, such as the DGF, which is a feature of high predictivity (see below the plot of feature importances). Let's take as an example again the known target of CCA1 *AT3G46640*:
+```{r, warning=FALSE, message=FALSE}
+plotPredictions(CCA1.predictions.roots,
+                imported_genomic_data = imported_genomic_data.roots,
+                gene = "AT3G46640",
+                genomic_data = "DGF")
+```
+Such plots can help to choose mutation sites or to compare graphically the potential cis-regulatory landscape of different genes.
+  
+# 5. Customization of the implementation
+
+The package has been thought so that it allows changes in the default implementation.
+
+## 5.1. Skip the downloading of the data related to gene structures and/or that of the genome sequence
+
+The functions `importGenomicData()` and `getTFBSdata()` offer functionalities of downloading of gene structures data (location of the promoter, coding sequence,... of the transcript models) and genome sequence. This might bring a gain of time and the ensurance that the related data are correctly input into the workflow. However, access to internet is not always possible, the downloading can take several minutes while the inputting from source files is instantaneous and custom data might be necessary in some cases (for instance, you might need an old assembly of a genome).
+
+An example of inputting the data entirely from source files is given by the help pages of the functions `importGenomicData()` (cf. arguments `genmic_data`, `tss` and `tts`) and `getTFBSdata()` (cf. argument `genome_sequence`).
+
+We will predict the binding sites of PIF3 and TOC1 in Arabidopsis seedlings based on a toy genome (obtained by random subsetting of the genome of Arabidopsis).
+
+The location of the 5'untranslated regions (5'UTR), coding sequences (CDS), introns and 3'UTR need to be imported from BED files through the `genomic_data` argument of `importGenomicData()`. It is important that the vector passed to `genomic_data` names the paths to these files with exactly the following names: "X5UTR", "CDS", "Intron" and "X3UTR". The location of transcription start site (TSS) and transcription termination site (TTS) are input throught the `tss` and `tts` arguments of the `importGenomicData()` from BED files. In the all the abovementioned files, the intervals are named in the 'name' field according to the name of the treanscript that they compose. It is not necessary to give the location of the promoters, proxomal promoters and downstream regions as this is calculated automatically based on the location of the TSS and TTS and the lengths of promoters, proximal promoters and downstream regions that are set throught the arguments `promoter_length` (default = 2000bp), `proximal_length` (default = 500bp) and `downstream_length` (default = 1000bp) of `importGenomicData()`.
+
+The genome sequence can be input from a fasta file (that might be compressed) through the `genome_sequence` of the `getTFBSdata()` function.
+
+```{r, warning=FALSE, message=FALSE, eval =FALSE}
+#Pay attention to the names of the genomic_data.ex. Use exactly the names "X5UTR", "CDS", "Intron" and "X3UTR" for the paths to the files related to the 5'UTRs, CDS, introns and 3'UTRs.
+#The system of nomenclature of the transcripts need to be coherent across the different files that are imported.
+genomic_data.ex <- c(CE = system.file("extdata/conserved_elements_example.bed", package = "Wimtrap"),
+                      DGF = system.file("extdata/DGF_example.bed", package = "Wimtrap"),
+                      DHS = system.file("extdata/DHS_example.bed", package = "Wimtrap"),
+                      X5UTR = system.file("extdata/x5utr_example.bed", package = "Wimtrap"), 
+                      CDS = system.file("extdata/cds_example.bed", package = "Wimtrap"),
+                      Intron = system.file("extdata/intron_example.bed", package = "Wimtrap"),
+                      X3UTR = system.file("extdata/x3utr_example.bed", package = "Wimtrap")
+                     )
+imported_genomic_data.ex <- importGenomicData(biomart = FALSE,
+                                              genomic_data = genomic_data.ex,
+                                              tss = system.file("extdata/tss_example.bed", package = "Wimtrap"),
+                                              tts = system.file("extdata/tts_example.bed", package = "Wimtrap"))
+TFBSdata.ex <- getTFBSdata(pfm = system.file("extdata/pfm_example.pfm", package = "Wimtrap"),
+                           TFnames = c("PIF3", "TOC1"),
+                           organism = NULL,
+                           genome_sequence = system.file("extdata/genome_example.fa", package = "Wimtrap"),
+                           imported_genomic_data = imported_genomic_data.ex)
+```
+
+## 5.2. Manipulate the genomic data and the datasets of potential binding sites
+
+The objects output by `importGenomicData()` and `getTFBSdata()` can be manipulated to customize the predictive genomic features. The output of `importGenomicData()` is a list of GRanges objects that can be individually modified before feeding the `getTFBSdata()` function. The ouutput of `getTFBSdata()` is a vector of file paths that encode the dataset of binding sites for each considered transcription factor. The datasets can be imported in R, modified and re-exported in a tab-separated file before calling `buildTFBSmodel`
+
+This might especially allow to define features that takes into account the differences of signal between two growth stages, two treatments, two organs... As an example, we will build a model specific to CCA1 that takes integrates features that calculate the differences between the average DGF scores extracted on windows of 20bp, 400bp and 1000bp centered on the potential binding sites in the roots and in the seedlings.
+
+```{r, warning=FALSE, message=FALSE, eval =FALSE}
+tmp.roots <- data.table::fread(CCA1data.roots)
+tmp.seedlings <- data.table::fread(CCA1data.seedlings)
+
+tmp.roots <- cbind(tmp.roots,
+                       DGF_20bp_diff = tmp.seedlings$DGF_20bp-tmp.roots$DGF_20bp,
+                       DGF_400bp_diff = tmp.seedlings$DGF_400bp-tmp.roots$DGF_400bp,
+                       DGF_1000bp_diff = tmp.seedlings$DGF_1000bp-tmp.roots$DGF_1000bp)
+tmp.seedlings <- cbind(tmp.seedlings,
+                       DGF_20bp_diff = tmp.seedlings$DGF_20bp-tmp.roots$DGF_20bp,
+                       DGF_400bp_diff = tmp.seedlings$DGF_400bp-tmp.roots$DGF_400bp,
+                       DGF_1000bp_diff = tmp.seedlings$DGF_1000bp-tmp.roots$DGF_1000bp)
+
+data.table::fwrite(tmp.roots,
+                   "Diff_CCA1_roots.tsv",
+                   sep = "\t")
+
+data.table::fwrite(tmp.seedlings,
+                   "Diff_CCA1_seedlings.tsv",
+                   sep = "\t")
+
+
+Diff.model <- buildTFBSmodel(c(CCA1 = "Diff_CCA1_seedlings.tsv"), #name the file path ("CCA1=...")
+                             ChIPpeaks = c(CCA1 = "example/CCA1_athal_seedlings.narrowPeak"))
+
+Diff.predictions <- predictTFBS(Diff.model, c(CCA1 = "Diff_CCA1_roots.tsv"))
 
 ```
 
-# 2. Models and data available on github
+## 5.3. Use a different algorithm of pattern-matching
 
-On the github repository [RiviereQuentin/Wimtrap](https://github.com/RiviereQuentin/Wimtrap), we make available models specific to *Arabidopsis thaliana* and *Solanum lycopersicum* and underlying data.
+It is possible to bypass the step of pattern-matching by indicating directly the location of potential binding sites as a `GRanges` object directly to `getTFBSdata()` through the `matches` argument. This allows to import, for instance, the results of pattern-matching obtained from tools external to Wimtrap.
 
-These resources might be used for the following applications:
+Let's consider here a set of 1000 potential binding sites defined randomly on the chromosome 1 of Arabidipsis for whic we will assign a random score. The raw score of the potential binding need to be input in the first metadata column and the log10 of the p-value in the second.
+```{r, warning=FALSE, message=FALSE, eval =FALSE}
+library(GenomicRanges)
+RandomPotentialTFBS <- GRanges(seqnames = 1,
+                               ranges = IRanges(start = runif(1000, min = 1, max = 30427671),
+                                                width = 12),
+                               strand = "*")
+mcols(RandomPotentialTFBS)[,"matchScore"] <- rnorm(1000, 0.5, 0.1) 
+mcols(RandomPotentialTFBS)[,"matchLogPval"] <- -abs(rnorm(1000, 4, 0.05) )
+RandomData <- getTFBSdata(matches = c(CCA1 = tmp),
+                          imported_genomic_data = imported_genomic_data.seedlings)
+```
 
-1. Use the general models obtained from data specific to *Arabidopsis thaliana* seedlings / *Solanum lycopersicum* ripening fruits to quickly get prediction of transcription factor binding sites (TFBS) and infer the cognate potential gene targets:
-    a. in *Arabidopsis thaliana* seedlings / *Solanum lycopersicum* ripening fruits (optimal use case).
-    b. in the same organisms but in one of the other conditions that are described on the github repository, in *Arabidopsis thaliana* (flowers, roots, root hairs and seed coat) and *Solanum lycopersicum* (immature fruits). This use case is sub-optimal but is justified by the absence of ChIP-chip/seq data obtained in these conditions that would allow to build specific models.
-    c. by transferring the models to other organisms/conditions. This use case is also sub-optimal and is deprecated when ChIP-seq data are available for the organism and condition that you study.
-2. Build new models from data related to *Arabidopsis thaliana* seedlings / *Solanum lycopersicum* ripening fruits by adding and/or selecting transcription factor ChIP-seq/chip data and genome-wide predictive data. This might be useful to obtain (1) TF-specific models, (2) models that will be applied to an organism-condition for which there are no available ChIP-chip/seq data ant that integrate only the features that are available in this organism-condition, (3) models that are more accurate models for *Arabidopsis thaliana* seedlings / *Solanum lycopersicum* ripening fruits.
 
-*If you build models that incorporate extended data for* Arabidopsis thaliana *seedlings / *Solanum lycopersicum *ripening fruits or that are specific to new organisms/conditions, you are encouraged to upload them together with their underlying data on the RiviereQuentin/Wimtrap github repository.*
+## 5.4. Use a different machine learning algorithm
+
+You can use the `buildTFBSmodel()` function to carry out only the steps of labelling, balancing and splitting between a training and validation datasets by setting the argument `xgb_modeling` to `FALSE`. In that case, you will obtain a list
+of `data.tables` corresponding to the training and the validation datasets. The training dataset can be easily used with
+your favorite machine learning algorithm, the `ChIP-peak` column defining the target variable (=1 if the potential binding
+site is validated by a ChIP-peak; =0 otherwise). When you will obtain your model, you will be able to assess it with the validation dataset.
+```{r, warning=FALSE, message=FALSE, eval =FALSE}
+CCA1.training.validation.sets <- buildTFBSmodel(CCA1data.seedlings, 
+                                                ChIPpeaks = c(CCA1 = "example/CCA1_athal_seedlings.narrowPeak"),
+                                                xgb_modeling = FALSE) 
+training.dataset <- CCA1.training.validation.sets$training.dataset
+validation.dataset <- CCA1.training.validation.sets$validation.dataset
+```
 
 
+References
+===========
 
+Baxter, L. et al. Conserved Noncoding Sequences Highlight Shared Components of Regulatory Networks in Dicotyledonous Plants. Plant Cell 24, 3949–3965 (2012).
 
+Haudry, A. et al. An atlas of over 90,000 conserved noncoding sequences provides insight into crucifer regulatory regions. Nat. Genet. 45, 891–898 (2013).
 
+Jin, J. et al. PlantTFDB 4.0: toward a central hub for transcription factors and regulatory interactions in plants. Nucleic Acids Res. 45, D1040–D1045 (2017).
+
+Li, H., Quang, D. & Guan, Y. Anchor: trans-cell type prediction of transcription factor binding sites. Genome Res. 29, 281–292 (2019)
+
+Kinsella, R. J. et al. Ensembl BioMarts: a hub for data retrieval across taxonomic space. Database 2011, bar030–bar030 (2011).
+
+Nagel, D. H. et al. Genome-wide identification of CCA1 targets uncovers an expanded clock network in Arabidopsis. Proc. Natl. Acad. Sci. 112, E4802–E4810 (2015).
+
+Rister, J. & Desplan, C. Deciphering the genome’s regulatory code: The many languages of DNA. BioEssays 32, 381–384 (2010).
+
+Thomas, B. C., Rapaka, L., Lyons, E., Pedersen, B. & Freeling, M. Arabidopsis intragenomic conserved noncoding sequence. Proc. Natl. Acad. Sci. 104, 3348–3353 (2007).
+
+Sullivan, A. M., Arsovski, A.A., Lempe, J., Bubb, K.L. et al. Mapping and dynamics of regulatory DNA and transcription factor networks in A. thaliana. Cell Rep. 8, 2015-2030 (2014).
+
+Zhang, W., Zhang, T., Wu, Y. & Jiang, J. Genome-Wide Identification of Regulatory DNA Elements and Protein-Binding Footprints Using Signatures of Open Chromatin in Arabidopsis. Plant Cell 24, 2719–2731 (2012).

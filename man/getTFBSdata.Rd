@@ -11,8 +11,8 @@ getTFBSdata(
   genome_sequence = "getGenome",
   imported_genomic_data,
   matches = NULL,
-  strandAsFeature = FALSE,
-  pvalThreshold = 0.001,
+  strand_as_feature = FALSE,
+  pval_threshold = 0.001,
   short_window = 20,
   medium_window = 400,
   long_window = 1000
@@ -20,43 +20,43 @@ getTFBSdata(
 }
 \arguments{
 \item{pfm}{Path to a file including the position frequency or weight matrices (PFMs or PWMs) of the motifs recognized
-the considered transcription factors (training and/or studied TFs). This file can be in different formats, determined based
+by the considered transcription factors (training and/or studied TFs). This file can be in different formats, determined based
 on the file extension: raw pfm (".pfm"), jaspar (".jaspar"), meme (".meme"), transfac (".transfac"), homer (".motif") or
-cis-bp (".txt").
-argument \emph{matches}).}
+cis-bp (".txt").\code{pfm} can be set to \code{NULL} (default value) if you provide the results of pattern-matching
+obtained from an external source (see the argument \code{matches}).}
 
 \item{TFnames}{names of the considered transcription factors among those described in the \code{pfm} file.}
 
-\item{organism}{Binomial name of the organism. Can be set to NULL if you provide the genome sequence
-(see the argument \emph{genome_sequence})}
+\item{organism}{Binomial name of the organism. Can be set to \code{NULL} if you provide the genome sequence
+(see the argument \code{genome_sequence})}
 
 \item{genome_sequence}{"getGenome" (by default) or local path to a FASTA file encoding the genomic sequence
-of the organism. The default value allows the automatic download of the genomic sequence (when \emph{organism} is defined)
+of the organism. The default value allows the automatic download of the genomic sequence (when \code{organism} is input)
 from ENSEMBL or ENSEMBL GENOMES.}
 
 \item{imported_genomic_data}{An object output by \code{\link[=importGenomicData]{importGenomicData()}} and that includes data related to the chromatin
-state that are specific to the condition in which the ChIP-seq data considered have been obtained.}
+state that are specific to the training or studied condition.}
 
-\item{matches}{NULL (by default) or a named list of GRanges objects. Each GRanges object defines the location along
-the genome of the matches with the primary motif of a given transcription factor. It contains also a metadata column
-named 'matchLogPval'that gives the p-value of the matches. The list input through \emph{matches} has to be named according
-to the names of the transcription factors considered. These names have to be consistent with those provided through
-the \emph{ChIP-peaks} argument. The default value allows to perform the pattern-matching analysis with the function encoded
-by the Wimtrap package.}
+\item{matches}{\code{NULL} (by default) or a named list of \code{GRanges} objects. Each \code{GRanges} object is related to a
+given transcritpion factor and defines the location along the genome of the matches with the primary motif of the latter.
+The \code{GRanges} objects contain also a metadata column named '\code{matchLogPval}'that gives the p-value of the matches.
+The list input through \code{matches} has to be named according to the names of the transcription factors considered.
+These names have to be consistent with those provided through the \code{ChIP-peaks} argument. The default value allows to
+perform the pattern-matching analysis with the function encoded by the Wimtrap package.}
 
-\item{strandAsFeature}{Logical. Should be considered as feature the orientation of the matches in relation to the
-direction of transcription of the closest transcript? Default is FALSE.}
+\item{strand_as_feature}{A logical. Should be considered as feature the orientation of the matches in relation to the
+direction of transcription of the closest transcript? Default is \code{FALSE}.}
 
-\item{pvalThreshold}{P-value threshold to identify the matches with the primary motifs of the transcription factors.
+\item{pval_threshold}{P-value threshold to identify the matches with the primary motif of the transcription factors.
 Default is set to 0.001.}
 
-\item{short_window}{Integer (20 by default). Sets the length of the short-ranges window centered on the potential binding
+\item{short_window}{An integer (20 by default). Sets the length of the short-ranges window centered on the potential binding
 sites and on which the genomic features are extracted.}
 
-\item{medium_window}{Integer (400 by default). Sets the length of the medium-ranges window centered on the potential binding
+\item{medium_window}{An integer (400 by default). Sets the length of the medium-ranges window centered on the potential binding
 sites and on which the genomic features are extracted.}
 
-\item{long_window}{Integer (1000 by default). Sets the length of the long-ranges window centered on the potential binding
+\item{long_window}{An integer (1000 by default). Sets the length of the long-ranges window centered on the potential binding
 sites and on which the genomic features are extracted.}
 }
 \value{
@@ -65,7 +65,7 @@ and genomic feature extraction for each of the transcription factors considered.
 the location of the potential binding sites identified by pattern-matching. The following fields contain the
 raw score and/or p-value of the matches, and the the genomic features extracted at location of the matches
 on short-, medium- and long-ranges-centered windows the label ('1' = "positive" = "ChIP-validated in
-a given condition" or '0' = "negative") for the the training TFsr.
+the considered condition" or '0' = "negative") for the the training TFsr.
 }
 \description{
 \code{getTFBSdata} writes files encoding for datasets characterizing the genomic context
