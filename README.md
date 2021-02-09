@@ -44,14 +44,14 @@ Predictions can be made taking into consideration chromatin state features relat
 To predict the binding sites of "AT2G46830" in flowers of Arabidopsis or of "Solyc00g0224680.1" in immature fruits of tomato, type:
 
 ```
-#Predictions of the binding sites of "AT2G46830" in flowers of Arabidopsis
-CCA1predictions.flowers <- carepat(organism = "Arabidopsis thaliana",
-                                  condition = "flowers",
-                                  TFnames = "AT2G46830")
-#Predictions of the binding sites of "Solyc00g024680.1" in immature fruits of tomato
-DOF24predictions.immature <- carepat(organism = "Solanum lycopersicum",
-                                  condition = "immature_fruits",
-                                  TFnames = "Solyc00g024680.1")
+    #Predictions of the binding sites of "AT2G46830" in flowers of Arabidopsis
+    CCA1predictions.flowers <- carepat(organism = "Arabidopsis thaliana",
+                                       condition = "flowers",
+                                       TFnames = "AT2G46830")
+    #Predictions of the binding sites of "Solyc00g024680.1" in immature fruits of tomato
+    DOF24predictions.immature <- carepat(organism = "Solanum lycopersicum",
+                                         condition = "immature_fruits",
+                                         TFnames = "Solyc00g024680.1")
 ```
 
 ## Build and apply a predictive model
