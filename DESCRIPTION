@@ -1,6 +1,6 @@
 Package: Wimtrap
 Type: Package
-Title: Integrative tools to predict transcription factor binding site location
+Title: Integrative tools to predict the location of transcription factor binding sites
 Version: 0.1.0
 Author: Quentin Rivière, Madalina Ciortan, Massimiliano Corso, Nathalie Verbruggen, Matthieu Defrance
 Maintainer: Quentin Rivière <qri@hotmail.be>
