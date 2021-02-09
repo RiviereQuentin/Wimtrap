@@ -5,9 +5,11 @@ Wimtrap: Integrative tools to predict the location of transcription factor bindi
 ## Installation
 
 Installing Wimtrap requires at first the installation of BiocManager, if it has not been done yet:
+```
     if(!require("BiocManager", quietly = TRUE)){  
         install.packages("BiocManager")
         }
+ ```
   
 The package can then be installed by typing the following:
 
