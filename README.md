@@ -4,7 +4,7 @@ Wimtrap: Integrative tools to predict the location of transcription factor bindi
 
 ## Installation
 
-Wimtrap is an R package that requires the last version of R (R 3.6.2), BiocManager and remotes to be installed. 
+Wimtrap is an R package that requires the last version of R (R 4.0.4), BiocManager and remotes to be installed. 
 
 In R, type the following lines:
 ```
@@ -44,6 +44,7 @@ Predictions can be made taking into consideration chromatin state features relat
 To predict the binding sites of "AT2G46830" in flowers of Arabidopsis or of "Solyc00g0224680.1" in immature fruits of tomato, type:
 
 ```
+    library(Wimtrap)
     #Predictions of the binding sites of "AT2G46830" in flowers of Arabidopsis
     CCA1predictions.flowers <- carepat(organism = "Arabidopsis thaliana",
                                        condition = "flowers",
