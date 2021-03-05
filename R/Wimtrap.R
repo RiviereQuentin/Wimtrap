@@ -1034,7 +1034,9 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum")
   if (!file.exists(test.file)){
     message("Downloading data and models - needs to be done once")
     utils::download.file(url = "https://github.com/RiviereQuentin/carepat/archive/main.zip",
-                         destfile = paste0(package.dir, "/carepat.zip" ))
+                         destfile = paste0(package.dir, "/carepat.zip" ),
+                         timeout = 600,
+                         quiet = FALSE)
     utils::unzip(zipfile = paste0(package.dir, "/carepat.zip"),
                  exdir = package.dir)
   }
