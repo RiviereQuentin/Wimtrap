@@ -20,7 +20,8 @@ Then, you can enter:
 ```
   BiocManager::install("RiviereQuentin/Wimtrap",                     
     dependencies = TRUE,                     
-    build_vignettes = TRUE)
+    build_vignettes = TRUE,
+    force = TRUE)
 ````
 
 If an error occurs, it might be because the version of R, BiocManager and/or remotes is not updated. 
