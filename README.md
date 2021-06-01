@@ -58,7 +58,7 @@ To predict the binding sites of "AT2G46830" in flowers of Arabidopsis or of "Sol
 
 ## Build and apply a predictive model
 
-Extensive details about the functionalities offered by Wimtrap are provide in the [user guide](http://lpgmp.ulb.be/wp-content/uploads/2021/02/Wimtrap.pdf) and in the manual pages of the functions, which can be accessed by entering in R:
+Extensive details about the functionalities offered by Wimtrap are provide in the [user guide](https://htmlpreview.github.io/?https://github.com/RiviereQuentin/Wimtrap/blob/main/vignettes/Wimtrap.html) and in the manual pages of the functions, which can be accessed by entering in R:
 
 ```
     library(Wimtrap)
