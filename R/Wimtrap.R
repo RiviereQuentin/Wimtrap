@@ -479,29 +479,30 @@ getTFBSdata <- function(pfm = NULL,
 #'                                TFs_validation = "PIF3")
 
 buildTFBSmodel <- function(TFBSdata,
-                           ChIPpeaks,
-                           ChIPpeaks_length = 400,
-                           TFs_validation = NULL,
-                           model_assessment = TRUE,
-                           xgb_modeling = TRUE){
+         ChIPpeaks,
+         ChIPpeaks_length = 400,
+         TFs_validation = NULL,
+         model_assessment = TRUE,
+         xgb_modeling = TRUE){
   ChIP_regions <- listChIPRegions(ChIPpeaks, NULL, ChIPpeaks_length)
   DataSet <- data.frame()
   if (length(names(ChIPpeaks))==0 &length(TFBSdata) == 1) {names(ChIPpeaks) == names(TFBSdata)}
   for (trainingTF in names(ChIPpeaks)){
-     considered <- data.table::fread(TFBSdata[trainingTF],
-                                     stringsAsFactors = TRUE)
-     considered$TF <- trainingTF
-     considered <- GenomicRanges::makeGRangesFromDataFrame(considered,
-                                                           keep.extra.columns = TRUE)
-     validated_TFBS <- GenomicRanges::findOverlaps(considered, ChIP_regions[[trainingTF]], select = "all")
-     considered <- as.data.frame(considered)
-     considered$ChIP.peak <- 0
-     considered$ChIP.peak[validated_TFBS@from[!duplicated(validated_TFBS@from)]] <- 1
-     NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
-     DataSet <- rbind(DataSet,
-                      considered[considered$ChIP.peak == 1,],
-                      considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
-     rm(considered)
+    considered <- data.table::fread(TFBSdata[trainingTF],
+                                    stringsAsFactors = TRUE)
+    considered$TF <- trainingTF
+    considered <- GenomicRanges::makeGRangesFromDataFrame(considered,
+                                                          keep.extra.columns = TRUE)
+    validated_TFBS <- GenomicRanges::findOverlaps(considered, ChIP_regions[[trainingTF]], select = "all")
+    considered <- as.data.frame(considered)
+    considered$ChIP.peak <- 0
+    considered$ChIP.peak[validated_TFBS@from[!duplicated(validated_TFBS@from)]] <- 1
+    NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
+    if (NbTrueBs > nrow(considered[considered$ChIP.peak == 0,])){NbTrueBs <- length((which(considered$ChIP.peak == 0)))}
+    DataSet <- rbind(DataSet,
+                     considered[sample(which(considered$ChIP.peak == 1), NbTrueBs),],
+                     considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
+    rm(considered)
   }
   DataSet <- data.table::as.data.table(DataSet)
   TFBSdata <- DataSet[,-seq(1,5), with = FALSE]
@@ -511,12 +512,12 @@ buildTFBSmodel <- function(TFBSdata,
     trainind <- sample(seq(1,nrow(TFBSdata)), as.integer(nrow(TFBSdata)*0.8))
     testind <- seq(1,nrow(TFBSdata))[!(seq(1,nrow(TFBSdata)) %in% trainind)]
   } else {
-    trainind <- which(TFBSdata$TF %in% TFs_validation)
-    testind <- which(!(TFBSdata$TF) %in% TFs_validation)
+    trainind <- which(!(TFBSdata$TF %in% TFs_validation))
+    testind <- which(TFBSdata$TF %in% TFs_validation)
   }
   TFBSdata.training <- TFBSdata[trainind,]
   TFBSdata.validation <- TFBSdata[testind,]
-  #Pre-processing of the training dataset
+    #Pre-processing of the training dataset
   ##Remove columns that do not have to be taken into account
   if (length(grep(pattern = "matchScore", colnames(TFBSdata.training))) > 0){
     torm <- grep(pattern = "matchScore", colnames(TFBSdata.training))
@@ -549,16 +550,20 @@ buildTFBSmodel <- function(TFBSdata,
   train <- filteredDescr[!NAs,]
   #Pre-processing of the validation dataset
   ##Remove columns that do not have to be taken into account
-  if (length(grep(pattern = "TF", colnames(TFBSdata.validation))) > 0){
-    torm <- grep(pattern = "TF", colnames(TFBSdata.validation))
-     TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
-   } else {}
-  if (length(grep(pattern = "TSS", colnames(TFBSdata.validation))) > 0){
-    torm <- grep(pattern = "TSS", colnames(TFBSdata.validation))
+  if (length(grep(pattern = "matchScore", colnames(TFBSdata.validation))) > 0){
+    torm <- grep(pattern = "matchScore", colnames(TFBSdata.validation))
     TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
   } else {}
-  if (length(grep(pattern = "TTS", colnames(TFBSdata.validation))) > 0){
-    torm <- grep(pattern = "TTS", colnames(TFBSdata.validation))
+  if (length(grep(pattern = "TF", colnames(TFBSdata.validation))) > 0){
+    torm <- grep(pattern = "TF", colnames(TFBSdata.validation))
+    TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
+  } else {}
+  if (length(grep(pattern = "ClosestTSS", colnames(TFBSdata.validation))) > 0){
+    torm <- grep(pattern = "ClosestTSS", colnames(TFBSdata.validation))
+    TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
+  } else {}
+  if (length(grep(pattern = "ClosestTTS", colnames(TFBSdata.validation))) > 0){
+    torm <- grep(pattern = "ClosestTTS", colnames(TFBSdata.validation))
     TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
   } else {}
   ## Remove the infinite p-values associated to P-M,
@@ -568,8 +573,8 @@ buildTFBSmodel <- function(TFBSdata,
   dummy <- stats::model.matrix(~.+0, data = TFBSdata.validation[,-c("ChIP.peak"),with=F])
   TFBSdata.validation <- cbind(dummy, TFBSdata.validation[,"ChIP.peak"])
   ##Remove highly correlated features
-  descrCor <- stats::cor(TFBSdata.validation, use = 'complete')
-  highlyCorDescr <- caret::findCorrelation(descrCor, cutoff = .95)
+  #descrCor <- stats::cor(TFBSdata.validation, use = 'complete')
+  #highlyCorDescr <- caret::findCorrelation(descrCor, cutoff = .95)
   filteredDescr <- TFBSdata.validation[,colnames(TFBSdata.validation)[highlyCorDescr] := NULL]
   NAs <- is.na(as.data.frame(filteredDescr))
   NAs <- apply(NAs, 1, function(x) {if (length(which(x==TRUE)) > 0 ) {return(TRUE)} else {return(FALSE)} })
@@ -599,9 +604,20 @@ buildTFBSmodel <- function(TFBSdata,
     xgbcv <- xgboost::xgb.cv( params = params, data = dtrain, nrounds = 100, nfold = 5, showsd = T, stratified = T, print.every.n = 10, early.stop.round = 20, maximize = F)
 
     xgb1 <- xgboost::xgb.train(params = params, data = dtrain, nrounds = xgbcv$best_iteration, watchlist = list(val=dtest,train=dtrain), print.every.n = 10, early.stop.round = 10, maximize = F , eval_metric = "error")
-    xgbpred <- stats::predict(xgb1,dtest)
 
     if (model_assessment){
+      xgbpred <- stats::predict(xgb1,dtest)
+      a <- tryCatch({pROC::smooth(pROC::roc(ts_label, xgbpred), n = 100)},
+                    error = function(cond){return(pROC::roc(ts_label, xgbpred))})
+      if (length(a$specificities) < 102){
+        b <- spline(a$specificities, a$sensitivities, n = 102, xmin = 0, xmax = 1)
+        a$specificities <- b$x
+        a$sensitivities <- b$y
+      }
+      print(plot(a))
+      print(lines(pROC::roc(ts_label, test$matchLogPval), col = "red"))
+      print(legend(x = "bottom", legend = c("Model", "Pattern-Matching"), fill = c("black", "red")))
+      print(mtext(text = round(pROC::auc(ts_label, xgbpred), 2), side = 2))
       xgbpred <- ifelse(xgbpred > 0.5,1,0)
       cat("Performances of the model\n")
       print(caret::confusionMatrix(as.factor(xgbpred), as.factor(ts_label)))
@@ -610,10 +626,6 @@ buildTFBSmodel <- function(TFBSdata,
       print(mat)
       nb_max <- ifelse(nrow(mat) < 35, nrow(mat), 35)
       print(xgboost::xgb.plot.importance(importance_matrix = mat[1:nb_max]))
-      print(plot(pROC::roc(ts_label, xgbpred)))
-      print(lines(pROC::roc(ts_label, test$matchLogPval), col = "red"))
-      print(legend(x = "bottom", legend = c("Model", "Pattern-Matching"), fill = c("black", "red")))
-      print(mtext(text = round(pROC::auc(ts_label, xgbpred), 2), side = 2))
     } else {
     }
     save(xgb1, file = "model.RData")
@@ -732,12 +744,23 @@ predictTFBS <- function(TFBSmodel,
     ## that occurs when the PWM is not flexible (i.e. is a consensus)
     TFBSdata$matchLogPval[which(is.infinite(TFBSdata$matchLogPval))] <- max(TFBSdata$matchLogPval[which(!is.infinite(TFBSdata$matchLogPval))])
     TFBSdata <- TFBSdata[,TFBSmodel$feature_names, with=FALSE]
+    if(dim(TFBSdata)[2] == 1){
+      featname <- colnames(TFBSdata)
+    }
     ##Create dummy variables
     TFBSdata <- stats::model.matrix(~.+0, data = TFBSdata)
     NAs <- is.na(as.data.frame(TFBSdata))
     NAs <- apply(NAs, 1, function(x) {if (length(which(x==TRUE)) > 0 ) {return(TRUE)} else {return(FALSE)} })
     TFBSdata <- TFBSdata[!NAs,]
+    if(is.null(dim(TFBSdata))){
+      TFBSdata <- as.data.frame(TFBSdata)
+      colnames(TFBSdata) <-featname
+    }
     TFBSdata <- TFBSdata[,colnames(TFBSdata)[colnames(TFBSdata) %in% TFBSmodel$feature_names]]
+    if(is.null(dim(TFBSdata))){
+      TFBSdata <- as.data.frame(TFBSdata)
+      colnames(TFBSdata) <-featname
+    }
     TFBSdata <- data.table::as.data.table(TFBSdata)
     TFBSdata <- stats::model.matrix(~.+0,data = TFBSdata)
 
@@ -756,7 +779,7 @@ predictTFBS <- function(TFBSmodel,
     return(x)
   })
   results <- do.call(rbind, results)
-  results <- results[results$prediction.score >= 0.5,]
+  results <- results[results$prediction.score >= score_threshold,]
   return(results)
 }
 
@@ -1034,9 +1057,7 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum")
   if (!file.exists(test.file)){
     message("Downloading data and models - needs to be done once")
     utils::download.file(url = "https://github.com/RiviereQuentin/carepat/archive/main.zip",
-                         destfile = paste0(package.dir, "/carepat.zip" ),
-                         timeout = 600,
-                         quiet = FALSE)
+                         destfile = paste0(package.dir, "/carepat.zip" ))
     utils::unzip(zipfile = paste0(package.dir, "/carepat.zip"),
                  exdir = package.dir)
   }
@@ -2209,7 +2230,6 @@ getCandidatesRegions <- function(directInput_matches,
                                                                return(x)})
 
       # Export the annotated matches
-      print(summary(as.data.frame(AnnotatedMatches)))
       path_considered <-paste0(names(Pwm)[i], "_", paste0(unlist(strsplit(as.character(Sys.time()), ":"))[c(2,3)], collapse = "_"), "_annotations.tsv")
       readr::write_tsv(as.data.frame(AnnotatedMatches), path = path_considered)
       paths <- c(paths, path_considered)
