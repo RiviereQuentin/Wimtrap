@@ -479,30 +479,29 @@ getTFBSdata <- function(pfm = NULL,
 #'                                TFs_validation = "PIF3")
 
 buildTFBSmodel <- function(TFBSdata,
-         ChIPpeaks,
-         ChIPpeaks_length = 400,
-         TFs_validation = NULL,
-         model_assessment = TRUE,
-         xgb_modeling = TRUE){
+                           ChIPpeaks,
+                           ChIPpeaks_length = 400,
+                           TFs_validation = NULL,
+                           model_assessment = TRUE,
+                           xgb_modeling = TRUE){
   ChIP_regions <- listChIPRegions(ChIPpeaks, NULL, ChIPpeaks_length)
   DataSet <- data.frame()
   if (length(names(ChIPpeaks))==0 &length(TFBSdata) == 1) {names(ChIPpeaks) == names(TFBSdata)}
   for (trainingTF in names(ChIPpeaks)){
-    considered <- data.table::fread(TFBSdata[trainingTF],
-                                    stringsAsFactors = TRUE)
-    considered$TF <- trainingTF
-    considered <- GenomicRanges::makeGRangesFromDataFrame(considered,
-                                                          keep.extra.columns = TRUE)
-    validated_TFBS <- GenomicRanges::findOverlaps(considered, ChIP_regions[[trainingTF]], select = "all")
-    considered <- as.data.frame(considered)
-    considered$ChIP.peak <- 0
-    considered$ChIP.peak[validated_TFBS@from[!duplicated(validated_TFBS@from)]] <- 1
-    NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
-    if (NbTrueBs > nrow(considered[considered$ChIP.peak == 0,])){NbTrueBs <- length((which(considered$ChIP.peak == 0)))}
-    DataSet <- rbind(DataSet,
-                     considered[sample(which(considered$ChIP.peak == 1), NbTrueBs),],
-                     considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
-    rm(considered)
+     considered <- data.table::fread(TFBSdata[trainingTF],
+                                     stringsAsFactors = TRUE)
+     considered$TF <- trainingTF
+     considered <- GenomicRanges::makeGRangesFromDataFrame(considered,
+                                                           keep.extra.columns = TRUE)
+     validated_TFBS <- GenomicRanges::findOverlaps(considered, ChIP_regions[[trainingTF]], select = "all")
+     considered <- as.data.frame(considered)
+     considered$ChIP.peak <- 0
+     considered$ChIP.peak[validated_TFBS@from[!duplicated(validated_TFBS@from)]] <- 1
+     NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
+     DataSet <- rbind(DataSet,
+                      considered[considered$ChIP.peak == 1,],
+                      considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
+     rm(considered)
   }
   DataSet <- data.table::as.data.table(DataSet)
   TFBSdata <- DataSet[,-seq(1,5), with = FALSE]
@@ -512,12 +511,12 @@ buildTFBSmodel <- function(TFBSdata,
     trainind <- sample(seq(1,nrow(TFBSdata)), as.integer(nrow(TFBSdata)*0.8))
     testind <- seq(1,nrow(TFBSdata))[!(seq(1,nrow(TFBSdata)) %in% trainind)]
   } else {
-    trainind <- which(!(TFBSdata$TF %in% TFs_validation))
-    testind <- which(TFBSdata$TF %in% TFs_validation)
+    trainind <- which(TFBSdata$TF %in% TFs_validation)
+    testind <- which(!(TFBSdata$TF) %in% TFs_validation)
   }
   TFBSdata.training <- TFBSdata[trainind,]
   TFBSdata.validation <- TFBSdata[testind,]
-    #Pre-processing of the training dataset
+  #Pre-processing of the training dataset
   ##Remove columns that do not have to be taken into account
   if (length(grep(pattern = "matchScore", colnames(TFBSdata.training))) > 0){
     torm <- grep(pattern = "matchScore", colnames(TFBSdata.training))
@@ -550,20 +549,16 @@ buildTFBSmodel <- function(TFBSdata,
   train <- filteredDescr[!NAs,]
   #Pre-processing of the validation dataset
   ##Remove columns that do not have to be taken into account
-  if (length(grep(pattern = "matchScore", colnames(TFBSdata.validation))) > 0){
-    torm <- grep(pattern = "matchScore", colnames(TFBSdata.validation))
-    TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
-  } else {}
   if (length(grep(pattern = "TF", colnames(TFBSdata.validation))) > 0){
     torm <- grep(pattern = "TF", colnames(TFBSdata.validation))
+     TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
+   } else {}
+  if (length(grep(pattern = "TSS", colnames(TFBSdata.validation))) > 0){
+    torm <- grep(pattern = "TSS", colnames(TFBSdata.validation))
     TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
   } else {}
-  if (length(grep(pattern = "ClosestTSS", colnames(TFBSdata.validation))) > 0){
-    torm <- grep(pattern = "ClosestTSS", colnames(TFBSdata.validation))
-    TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
-  } else {}
-  if (length(grep(pattern = "ClosestTTS", colnames(TFBSdata.validation))) > 0){
-    torm <- grep(pattern = "ClosestTTS", colnames(TFBSdata.validation))
+  if (length(grep(pattern = "TTS", colnames(TFBSdata.validation))) > 0){
+    torm <- grep(pattern = "TTS", colnames(TFBSdata.validation))
     TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
   } else {}
   ## Remove the infinite p-values associated to P-M,
@@ -573,8 +568,8 @@ buildTFBSmodel <- function(TFBSdata,
   dummy <- stats::model.matrix(~.+0, data = TFBSdata.validation[,-c("ChIP.peak"),with=F])
   TFBSdata.validation <- cbind(dummy, TFBSdata.validation[,"ChIP.peak"])
   ##Remove highly correlated features
-  #descrCor <- stats::cor(TFBSdata.validation, use = 'complete')
-  #highlyCorDescr <- caret::findCorrelation(descrCor, cutoff = .95)
+  descrCor <- stats::cor(TFBSdata.validation, use = 'complete')
+  highlyCorDescr <- caret::findCorrelation(descrCor, cutoff = .95)
   filteredDescr <- TFBSdata.validation[,colnames(TFBSdata.validation)[highlyCorDescr] := NULL]
   NAs <- is.na(as.data.frame(filteredDescr))
   NAs <- apply(NAs, 1, function(x) {if (length(which(x==TRUE)) > 0 ) {return(TRUE)} else {return(FALSE)} })
@@ -601,23 +596,13 @@ buildTFBSmodel <- function(TFBSdata,
     dtest <- xgboost::xgb.DMatrix(data = new_ts,label=ts_label)
 
     params <- list(booster = "gbtree", objective = "binary:logistic", eta=0.3, gamma=0, max_depth=6, min_child_weight=1, subsample=1, colsample_bytree=1)
-    xgbcv <- xgboost::xgb.cv( params = params, data = dtrain, nrounds = 100, nfold = 5, showsd = T, stratified = T, print.every.n = 10, early.stop.round = 20, maximize = F)
+    xgbcv <- xgboost::xgb.cv( params = params, data = dtrain, nrounds = 100, nfold = 5, showsd = T, stratified = T, print.every.n = 10, early.stop.round = 100, maximize = F, metrics = "auc")
+    
+    xgb1 <- xgboost::xgb.train( params = params, data = dtrain, watchlist = list(train = dtrain, eval = dtest), nrounds = 100, eval_metric = "auc")
 
-    xgb1 <- xgboost::xgb.train(params = params, data = dtrain, nrounds = xgbcv$best_iteration, watchlist = list(val=dtest,train=dtrain), print.every.n = 10, early.stop.round = 10, maximize = F , eval_metric = "error")
+    xgbpred <- stats::predict(xgb1,dtest)
 
     if (model_assessment){
-      xgbpred <- stats::predict(xgb1,dtest)
-      a <- tryCatch({pROC::smooth(pROC::roc(ts_label, xgbpred), n = 100)},
-                    error = function(cond){return(pROC::roc(ts_label, xgbpred))})
-      if (length(a$specificities) < 102){
-        b <- spline(a$specificities, a$sensitivities, n = 102, xmin = 0, xmax = 1)
-        a$specificities <- b$x
-        a$sensitivities <- b$y
-      }
-      print(plot(a))
-      print(lines(pROC::roc(ts_label, test$matchLogPval), col = "red"))
-      print(legend(x = "bottom", legend = c("Model", "Pattern-Matching"), fill = c("black", "red")))
-      print(mtext(text = round(pROC::auc(ts_label, xgbpred), 2), side = 2))
       xgbpred <- ifelse(xgbpred > 0.5,1,0)
       cat("Performances of the model\n")
       print(caret::confusionMatrix(as.factor(xgbpred), as.factor(ts_label)))
@@ -626,6 +611,10 @@ buildTFBSmodel <- function(TFBSdata,
       print(mat)
       nb_max <- ifelse(nrow(mat) < 35, nrow(mat), 35)
       print(xgboost::xgb.plot.importance(importance_matrix = mat[1:nb_max]))
+      print(plot(pROC::roc(ts_label, xgbpred)))
+      print(lines(pROC::roc(ts_label, test$matchLogPval), col = "red"))
+      print(legend(x = "bottom", legend = c("Model", "Pattern-Matching"), fill = c("black", "red")))
+      print(mtext(text = round(pROC::auc(ts_label, xgbpred), 2), side = 2))
     } else {
     }
     save(xgb1, file = "model.RData")
@@ -703,7 +692,7 @@ buildTFBSmodel <- function(TFBSdata,
 #'                                   TFBSdata.ex,
 #'                                   studiedTFs = "PIF3")
 #' ##To get the transcripts whose expression is potentially regulated by PIF3 do as follows:
-#' PIF3_regulated.predictions <- as.character(PIF3BS.predictions$gene[!duplicated(PIF3BS.predictions)])
+#' PIF3_regulated.predictions <- as.character(PIF3BS.predictions$transcript[!duplicated(PIF3BS.predictions)])
 #' ###If you want to consider only the gene model,
 #' ###then do as follows:
 #' PIF3_regulated.predictions <- unlist(strsplit(PIF3_regulated.predictions, "[.]"))[seq(1, 2*length(PIF3_regulated.predictions),2)]
@@ -713,12 +702,12 @@ predictTFBS <- function(TFBSmodel,
                         TFBSdata,
                         studiedTFs = NULL,
                         show_annotations = FALSE,
-                        score_threshold = 0.5){
+                        score_threshold = 0.86){
   results <- list()
   paths <- TFBSdata
   if (length(studiedTFs)==0){studiedTFs <- names(TFBSdata)}
   for (TF in studiedTFs){
-    DataSet <- data.table::fread(paths[studiedTFs],
+    DataSet <- data.table::fread(paths[TF],
                                   stringsAsFactors = TRUE)
 
     TFBSdata <- DataSet[,-seq(1,5), with = FALSE]
@@ -744,23 +733,12 @@ predictTFBS <- function(TFBSmodel,
     ## that occurs when the PWM is not flexible (i.e. is a consensus)
     TFBSdata$matchLogPval[which(is.infinite(TFBSdata$matchLogPval))] <- max(TFBSdata$matchLogPval[which(!is.infinite(TFBSdata$matchLogPval))])
     TFBSdata <- TFBSdata[,TFBSmodel$feature_names, with=FALSE]
-    if(dim(TFBSdata)[2] == 1){
-      featname <- colnames(TFBSdata)
-    }
     ##Create dummy variables
     TFBSdata <- stats::model.matrix(~.+0, data = TFBSdata)
     NAs <- is.na(as.data.frame(TFBSdata))
     NAs <- apply(NAs, 1, function(x) {if (length(which(x==TRUE)) > 0 ) {return(TRUE)} else {return(FALSE)} })
     TFBSdata <- TFBSdata[!NAs,]
-    if(is.null(dim(TFBSdata))){
-      TFBSdata <- as.data.frame(TFBSdata)
-      colnames(TFBSdata) <-featname
-    }
     TFBSdata <- TFBSdata[,colnames(TFBSdata)[colnames(TFBSdata) %in% TFBSmodel$feature_names]]
-    if(is.null(dim(TFBSdata))){
-      TFBSdata <- as.data.frame(TFBSdata)
-      colnames(TFBSdata) <-featname
-    }
     TFBSdata <- data.table::as.data.table(TFBSdata)
     TFBSdata <- stats::model.matrix(~.+0,data = TFBSdata)
 
@@ -1057,7 +1035,9 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum")
   if (!file.exists(test.file)){
     message("Downloading data and models - needs to be done once")
     utils::download.file(url = "https://github.com/RiviereQuentin/carepat/archive/main.zip",
-                         destfile = paste0(package.dir, "/carepat.zip" ))
+                         destfile = paste0(package.dir, "/carepat.zip" ),
+                         timeout = 600,
+                         quiet = FALSE)
     utils::unzip(zipfile = paste0(package.dir, "/carepat.zip"),
                  exdir = package.dir)
   }
@@ -1238,8 +1218,229 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum")
                                  score_threshold = score_threshold,
                                  show_annotations = show_annotations)
   return(TFBSpredictions)
-  }
+}
 
+#' Test the performances of predicting gene targets based on the location of potential TFBS identified by Wimtrap
+#' @export
+#' @importFrom rtracklayer mcols
+#' @importFrom GenomicRanges makeGRangesFromDataFrame findOverlaps
+#' @importFrom xgboost xgb.DMatrix
+#' @importFrom stats predict
+#' @importFrom pROC roc coords
+#' @description
+#' This function aims at defining the optimal threshold to set on the TFBS prediction score output by Wimtrap in order to infer
+#' the potential gene targets of transcription factors. Subsequently, the performances at predicting gene targets are assessed
+#' for each transcription factor considered by considering the whole set of potential TFBS on a given chromosome (unbalanced dataset).
+#' @param TFBSdata A named character vector as output by the [getTFBSdata()] function, defining the local paths
+#' to files encoding for the results of pattern-matching and geonmic feature extraction for the training TFs and/or
+#' studied TFs.
+#' @param TFBSmodel A \code{xgb.Booster} object as output by the function [buildTFBSmodel()].
+#' @param chrTest An integer specifying the number of the chromosome that will be considered to assess
+#' the performances at predicting the TF gene targets. Default = 1.
+#' @param  ChIPpeaks A named character vector defining the local paths to BED files encoding the
+#' location of ChIP-peaks. The vector is named according to the transcription factors that are described
+#'  by the files indicated. **Caution**: the names of the \code{ChIPpeaks} have to find a match with those of \code{TFBSdata}.
+#'  Default is \code{NULL} and 
+#' @param ChIPpeaks_length An integer setting a fixed length for the ChIP-peaks, that are defined as the intervals of
+#' \code{ChIPpeaks_length} bp that are centered on the regions encoded in the \code{ChIPpeaks} files. Default value = 400.
+#' @param tss A list of \code{GRanges} objects as output by [importGenomicData()] or local path to a BED file defining 
+#' the transcription stat site (TSS), name and orientation of each protein-coding transcript of the organism.
+#' @param targets A named character vector defining the local paths to text files encoding the
+#' manually curated transcriptional targets of each transcription factor. The vector is named according to the transcription factors
+#' that are described by the files indicated. **Caution**: the names of the \code{ChIPpeaks} have to find
+#' a match with those of \code{TFBSdata}. Default = NULL (Transcriptional targets are predicted from ChIP-peaks)
+#' @details  Each gene is at first scored with the highest prediction score among the TFBSs associated with it and predicted by Wimtrap. 
+#' Each gene is then labelled as positive or negative. The positive genes are the genes whose the TSS is the closest to an
+#' occurrence on a ChIP-peak of the cognate TF-primary motif. This allows to draw a ROC curve based on a balanced dataset obtained from all the
+#' chromosomes but one and to identify the best threshold to set on the prediction score in order to predict TF gene targets.
+#' Finally, the performances are assessed for each TF based on the whole dataset of predicted TFBS on the left-over chromosome.
+#' @seealso [plotPredictions()] to vizualize the results for a given potential target gene.
+#' @return A \code{data.frame} that gives, for each TF considered, the performances of prediction of the transcriptional
+#' targets encoded on the test chromosome, taking into consideration all the TFBSs predicted by Wimtrap (prediction score >= 0.5) 
+#' on that chromosome.
+#' Due to the highly imbalanced dataset, the performances are expressed in terms of recall, precision, accuracy and F-score.
+#' In addition, in the last column, is presented the optimal threshold obtained when including all the input TFs.
+#' @examples
+#' genomic_data.ex <- c(CE = system.file("extdata/conserved_elements_example.bed", package = "Wimtrap"),
+#'                       DGF = system.file("extdata/DGF_example.bed", package = "Wimtrap"),
+#'                       DHS = system.file("extdata/DHS_example.bed", package = "Wimtrap"),
+#'                       X5UTR = system.file("extdata/x5utr_example.bed", package = "Wimtrap"),
+#'                       CDS = system.file("extdata/cds_example.bed", package = "Wimtrap"),
+#'                       Intron = system.file("extdata/intron_example.bed", package = "Wimtrap"),
+#'                       X3UTR = system.file("extdata/x3utr_example.bed", package = "Wimtrap")
+#'                      )
+#' imported_genomic_data.ex <- importGenomicData(biomart = FALSE,
+#'                                               genomic_data = genomic_data.ex,
+#'                                               tss = system.file("extdata/tss_example.bed", package = "Wimtrap"),
+#'                                               tts = system.file("extdata/tts_example.bed", package = "Wimtrap"))
+#' TFBSdata.ex <- getTFBSdata(pfm = system.file("extdata/pfm_example.pfm", package = "Wimtrap"),
+#'                            TFnames = c("PIF3", "TOC1"),
+#'                            organism = NULL,
+#'                            genome_sequence = system.file("extdata/genome_example.fa", package = "Wimtrap"),
+#'                            imported_genomic_data = imported_genomic_data.ex)
+#' TFBSmodel.ex <- buildTFBSmodel(TFBSdata = TFBSdata.ex,
+#'                                ChIPpeaks = c(PIF3 = system.file("extdata/PIF3_example.bed", package = "Wimtrap"),
+#'                                              TOC1 = system.file("extdata/TOC1_example.bed", package = "Wimtrap")),
+#'                                TFs_validation = "PIF3")
+#' ##Determine the optimal score threshold
+#' targetPerformances <- testTargetPredictions(
+#' TFBSdata = TFBSdata.ex["TOC1"],
+#' TFBSmodel = TFBSmodel.ex, 
+#' tss = imported_genomic_data.ex,
+#' ChIPpeaks =  c(TOC1 = system.file("extdata/TOC1_example.bed", package = "Wimtrap")))
+#' optimal_threshold <- targetPerformances$threshold[1]
+#' PIF3BS.predictions <- predictTFBS(TFBSmodel.ex,
+#'                                   TFBSdata.ex,
+#'                                   studiedTFs = "PIF3",
+#'                                   score_threshold = optimal_threshold)
+#' ##To get the transcripts whose expression is potentially regulated by PIF3 do as follows:
+#' PIF3_regulated.predictions <- as.character(PIF3BS.predictions$transcript[!duplicated(PIF3BS.predictions)])
+#' ###If you want to consider only the gene model,
+#' ###then do as follows:
+#' PIF3_regulated.predictions <- unlist(strsplit(PIF3_regulated.predictions, "[.]"))[seq(1, 2*length(PIF3_regulated.predictions),2)]
+#' PIF3_regulated.predictions <- PIF3_regulated.predictions[!duplicated(PIF3_regulated.predictions)]
+
+testTargetPredictions <- function(
+  TFBSdata,
+  TFBSmodel,
+  chrTest = 1,
+  tss,
+  ChIPpeaks = NULL,
+  ChIPpeaks_length = 400,
+  targets = NULL
+  )
+{
+  if (is.character(tss)){
+    tss <- Wimtrap::importGenomicData(genomic_data = tss,
+                                      tts = tss,
+                                      tss = tss)$TSS
+  } else {
+    tss <- tss$TSS
+  }
+  allgenes <- unlist(strsplit(x = rtracklayer::mcols(tss)[,1], split = "[.]"))[
+    seq(1, length(tss)*2, 2)
+    ]
+  tss$name <- allgenes
+  allgenes <- allgenes[!duplicated(allgenes)]
+  tss <- as.data.frame(tss)
+  allgenes_Chr5 <- tss$name[tss$seqnames == chrTest]
+  allgenes_Chr5 <- allgenes_Chr5[!duplicated(allgenes_Chr5)]
+  PSOnBins_all <- list()
+  for (TF in names(TFBSdata)) {
+    #Obtain the full dataset
+    annotations <- read.table(TFBSdata[TF],
+                              header = TRUE, sep = "\t")
+    annotations <- GenomicRanges::makeGRangesFromDataFrame(annotations,
+                                                           keep.extra.columns = TRUE)
+    if (is.null(targets)){
+      ChIPdata <- read.table(ChIPpeaks[TF], sep = "\t")
+      colnames(ChIPdata) <- c("seqnames", "start", "end")
+      ChIPdata$strand <- "*"
+      ChIPdata$seqnames <- Wimtrap:::getRiddChr(ChIPdata$seqnames)
+      ChIPdata$start <- (ChIPdata$start + (ChIPdata$end-ChIPdata$start)/2) - 200
+      ChIPdata$end <- ChIPdata$start + 400
+      ChIPdata <- GenomicRanges::makeGRangesFromDataFrame(ChIPdata)
+      
+      overlaps <- GenomicRanges::findOverlaps(query = annotations, 
+                                              subject = ChIPdata)
+      
+      ChIP.peaks <- rep(0, length(annotations))
+      ChIP.peaks[overlaps@from[!duplicated(overlaps@from)]] <- 1
+      
+      #Get the gene targets of the TF
+      targets <- annotations$ClosestTSS[ChIP.peaks == 1]
+      targets <- unlist(strsplit(x = as.character(targets), split = "[.]"))[seq(1, 2*length(targets),2)]
+      targets <- targets[!duplicated(targets)]
+    } else {
+      targets <- read.table(targets[TF], sep = "\t")
+      targets <- as.character(targets[,1])
+    }
+    annotations <- as.data.frame(annotations)
+    
+    #Get predictions
+    assessed <- annotations[,-seq(1:6)]
+    assessed <- assessed[,colnames(assessed) %in% TFBSmodel$feature_names]
+    assessed <- as.matrix(assessed)
+    assessed <- xgboost::xgb.DMatrix(data = assessed)
+    
+    predictions <- stats::predict(TFBSmodel, assessed)
+    annotations$predictions <- predictions
+    annotations <- annotations[predictions >= 0.5,]
+    
+    kept <- annotations[,c("seqnames", "start", "end", "width", "strand", "predictions", "ClosestTSS")]
+    kept$ClosestTSS <- unlist(strsplit(x = as.character(kept$ClosestTSS), split = "[.]"))[seq(1, 2*length(kept$ClosestTSS),2)]
+    
+    PSOnBins <- data.frame(seqnames = kept$seqnames[!duplicated(kept$ClosestTSS)],
+                           GeneID = kept$ClosestTSS[!duplicated(kept$ClosestTSS)],
+                           Max = 0)
+    rownames(PSOnBins) <- PSOnBins$GeneID
+    max_TFBS <- tapply(kept$predictions, kept$ClosestTSS, max, na.rm = TRUE)
+    PSOnBins[as.character(names(max_TFBS)), "Max"] <- max_TFBS
+    PSOnBins$Target <- 0
+    PSOnBins$Target[rownames(PSOnBins) %in% targets] <- 1
+    PSOnBins_all[[TF]] <- PSOnBins
+  }
+  PSOnBins <- do.call(rbind, PSOnBins_all)
+  #Select randomly the individuals used for training
+  PSOnBins <- PSOnBins[order(PSOnBins$Target),]
+  
+  #Keep an unbalanced dataset on the Chr5
+  
+  PSOnBins_test <- PSOnBins[which(PSOnBins$seqnames == chrTest),]
+  PSOnBins_train <- PSOnBins[-which(PSOnBins$seqnames == chrTest),] 
+  
+  
+  #Balance the dataset on the other chromosomes
+  NbPosNeg <- table(PSOnBins_train$Target)
+  PSOnBins <- PSOnBins_train[c(sample.int(NbPosNeg[1], NbPosNeg[2]),
+                               (seq((NbPosNeg[1]+1), nrow(PSOnBins_train)))),]
+  
+  NbToSample <- NbPosNeg[2]
+  if (NbToSample >= 10000) {NbToSample <- 10000}
+  
+  training_ids <- c(sample.int(NbPosNeg[2], NbToSample),
+                    sample.int(NbPosNeg[2], NbToSample)+NbPosNeg[2])
+  
+  
+  ##Performances considering Max
+  roc_test <- pROC::roc(response = as.integer(PSOnBins_test$Target), predictor = PSOnBins_test$Max)
+  threshold <- pROC::coords(roc_test, "best", ret="threshold", transpose = FALSE)
+  
+  #Assess the performances of the general model on each TF
+  
+  ##Performances considerind Max, Nb, Mean
+  performances <- list()
+  for (TF in names(TFBSdata)){
+    print(TF)
+    PSOnBins <- PSOnBins_all[[TF]]
+    PSOnBins_test <- PSOnBins[PSOnBins$seqnames == chrTest,]
+    geneswithoutTFBS <- allgenes_Chr5[!(allgenes_Chr5 %in% PSOnBins_test$GeneID)]
+    geneswithoutTFBS <- data.frame(seqnames = chrTest,
+                                   GeneID = geneswithoutTFBS,
+                                   Max = 0,
+                                   Target = 0)
+    geneswithoutTFBS$Target[geneswithoutTFBS$GeneID %in% targets] <- 1
+    PSOnBins_test <- rbind(PSOnBins_test, geneswithoutTFBS)
+    targetactual <- as.character(PSOnBins_test[,"Target"])
+    targetpredictions <- PSOnBins_test$Max >= as.numeric(threshold2[1])
+    targetpredictions <- as.character(as.integer(targetpredictions))
+    cm <- table(targetactual, targetpredictions)
+    recall <- (cm[2,2])/(cm[2,1]+cm[2,2])
+    precision <- (cm[2,2])/(cm[1,2]+cm[2,2])
+    f.score <- (precision * recall) / (precision + recall)
+    accuracy <- (cm[1,1] + cm[2,2])/length(targetactual)
+    performance <- data.frame(recall = recall, precision = precision, 
+                              accuracy = accuracy, f.score = f.score, 
+                              TF = TF, threshold = threshold)
+    performances[[TF]] <- performance
+  }
+  performances <- as.data.frame(do.call(rbind, performances))
+  for (i in c(1:4, 6)){
+    performances[,i] <- as.numeric(performances[,i])
+  }
+  performances$threshold <- round(as.numeric(performances$threshold), 4)
+  return(performances)
+}
 #________________________________________________________________________________________#
 #HIDDEN FUNCTION
 #========================================================================================#
@@ -2117,7 +2318,11 @@ getCandidatesRegions <- function(directInput_matches,
     }
   }
   Pwm <- Pwm[!duplicated(names(Pwm))]
-  Matches <- lapply(Matches, function(x) {x <- x[rtracklayer::mcols(x)[,2] <= log10(pval_threshold)]; return(x)})
+  Matches <- lapply(Matches, function(x) {y <- x[rtracklayer::mcols(x)[,2] <= log10(pval_threshold)]; 
+  if (length(y) == 0) {y <- x[which.min(rtracklayer::mcols(x)[,2])]};
+  if (length(y) == 0) {x <- as.data.frame(x); x$matchLogPval <- log10(pval_threshold);
+                       x <- GenomicRanges::makeGRangesFromDataFrame(x, keep.extra.columns = TRUE); y <- x};
+  return(y)})
   for (i in seq_along(Matches)) {
     excluded <- c()
       if (length(Matches[[i]]) > 0){
@@ -2230,7 +2435,8 @@ getCandidatesRegions <- function(directInput_matches,
                                                                return(x)})
 
       # Export the annotated matches
-      path_considered <-paste0(names(Pwm)[i], "_", paste0(unlist(strsplit(as.character(Sys.time()), ":"))[c(2,3)], collapse = "_"), "_annotations.tsv")
+      print(summary(as.data.frame(AnnotatedMatches)))
+      path_considered <-paste0(getwd(), "/", names(Pwm)[i], "_", paste0(unlist(strsplit(as.character(Sys.time()), ":"))[c(2,3)], collapse = "_"), "_annotations.tsv")
       readr::write_tsv(as.data.frame(AnnotatedMatches), path = path_considered)
       paths <- c(paths, path_considered)
     } else {
@@ -2251,7 +2457,7 @@ getCandidatesRegions <- function(directInput_matches,
 #========================================================================================#
 ### Implements a fast method of pattern-matching
 #========================================================================================#
-matrixScan <- function (pwm, genome, pval_threshold = 0.001){
+matrixScan <- function(pwm, genome, pval_threshold = 0.001){
   NbChromosomes <- length(genome)
   Start <- runif(200, 1, Biostrings::width(genome)[1] - 5000)
   Start <- Start[!(is.na(Start))]
@@ -2296,6 +2502,10 @@ matrixScan <- function (pwm, genome, pval_threshold = 0.001){
                    min.score = ScoreThreshold, with.score = TRUE)
   ScanRw <- lapply(genome, Biostrings::matchPWM, pwm = Biostrings::reverseComplement(pwm),
                    min.score = ScoreThreshold, with.score = TRUE)
+  if ((sum(unlist(lapply(ScanFw, length))) + sum(unlist(lapply(ScanRw, length)))) < 10000){
+    ScanFw <- lapply(genome, Biostrings::matchPWM, pwm = pwm, with.score = TRUE, min.score = 0.6*Biostrings::maxScore(pwm))
+    ScanRw <- lapply(genome, Biostrings::matchPWM, pwm = Biostrings::reverseComplement(pwm), with.score = TRUE, min.score = 0.6*Biostrings::maxScore(pwm))
+  }
   NbMatchesFw <- unlist(lapply(ScanFw, length))
   NbMatchesRw <- unlist(lapply(ScanRw, length))
   seqnamesMatches <- S4Vectors::Rle(rep(names(ScanFw), 2),
@@ -2321,39 +2531,89 @@ matrixScan <- function (pwm, genome, pval_threshold = 0.001){
     scoreMatches <- rbind(scoreMatches, rtracklayer::mcols(ScanRw[[i]]))
   }
   names(scoreMatches) <- "matchScore"
-  x <- c(round(min(scoreMatches[, 1]), 5), round(RandomScores,
-                                                 5), round(max(scoreMatches[, 1]), 5))
-  if (length(which(is.infinite(x)))) {
-    x <- x[-which(is.infinite(x))]
+  if ((nrow(rtracklayer::mcols(ScanRw[[i]]))) == 0){
+    scoreMatches <- data.table::data.table(macthScore = rep(1,
+                                                            (sum(unlist(lapply(ScanFw, length))) + sum(unlist(lapply(ScanRw, length))))))
+    kept <- seq(1, length(scoreMatches))
+    matchLogPval <- rep(log10(pval_threshold), length(kept))
+    scores <- scoreMatches[,1]
+  } else {
+    x <- c(round(min(scoreMatches[, 1]), 5), round(RandomScores,
+                                                   5), round(max(scoreMatches[, 1]), 5))
+    if (length(which(is.infinite(x)))) {
+      x <- x[-which(is.infinite(x))]
+    }
+    DistributionScores <- graphics::hist(x, breaks = c(0, seq(min(x,
+                                                                  na.rm = TRUE) - pval_threshold/20, max(x, na.rm = TRUE) + pval_threshold/20,
+                                                              pval_threshold/100)), ylim = c(0, length(x)), plot = FALSE)
+    PvaluesScores <- cumsum(DistributionScores$counts[seq(length(DistributionScores$counts),
+                                                          1, -1)])/sum(DistributionScores$counts)
+    PvaluesTable <- data.frame(score = DistributionScores$breaks[2:(length(DistributionScores$breaks) -
+                                                                      1)], p.value = PvaluesScores[seq((length(PvaluesScores) -
+                                                                                                          1), 1, -1)])
+    PvaluesTable <- rbind(PvaluesTable, c(round(max(scoreMatches[,
+                                                                 1]), 4), 0))
+    PvaluesTable <- rbind(PvaluesTable, c(round(min(scoreMatches[,
+                                                                 1]), 4), max(PvaluesTable$p.value)))
+    scores <- as.factor(round(scoreMatches[, 1], 4))
+    PvaluesTable <- PvaluesTable[PvaluesTable$score %in% scores,
+                                 ]
+    PvaluesTable <- PvaluesTable[!duplicated(PvaluesTable$score),]
+    kept <- which(scores %in% PvaluesTable$score)
+    scores <- scores[scores %in% PvaluesTable$score]
+    scores <- droplevels(scores)
+    levels(scores) <- PvaluesTable$p.value
+    matchLogPval <- log10(as.numeric(as.character(scores)))
+    matchLogPval[is.infinite(matchLogPval)] <- min(matchLogPval[!(is.infinite(matchLogPval))])
   }
-  DistributionScores <- graphics::hist(x, breaks = c(0, seq(min(x,
-                                                                na.rm = TRUE) - pval_threshold/20, max(x, na.rm = TRUE) + pval_threshold/20,
-                                                            pval_threshold/100)), ylim = c(0, length(x)), plot = FALSE)
-  PvaluesScores <- cumsum(DistributionScores$counts[seq(length(DistributionScores$counts),
-                                                        1, -1)])/sum(DistributionScores$counts)
-  PvaluesTable <- data.frame(score = DistributionScores$breaks[2:(length(DistributionScores$breaks) -
-                                                                    1)], p.value = PvaluesScores[seq((length(PvaluesScores) -
-                                                                                                        1), 1, -1)])
-  PvaluesTable <- rbind(PvaluesTable, c(round(max(scoreMatches[,
-                                                               1]), 4), 0))
-  PvaluesTable <- rbind(PvaluesTable, c(round(min(scoreMatches[,
-                                                               1]), 4), max(PvaluesTable$p.value)))
-  scores <- as.factor(round(scoreMatches[, 1], 4))
-  PvaluesTable <- PvaluesTable[PvaluesTable$score %in% scores,
-                               ]
-  PvaluesTable <- PvaluesTable[!duplicated(PvaluesTable$score),]
-  kept <- which(scores %in% PvaluesTable$score)
-  scores <- scores[scores %in% PvaluesTable$score]
-  scores <- droplevels(scores)
-  levels(scores) <- PvaluesTable$p.value
-  matchLogPval <- log10(as.numeric(as.character(scores)))
-  matchLogPval[is.infinite(matchLogPval)] <- min(matchLogPval[!(is.infinite(matchLogPval))])
-  ScanTrack <- GenomicRanges::GRanges(seqnames = seqnamesMatches[kept],
-                                      ranges = rangesMatches[kept,], strand = strandMatches[kept], scoreMatches[kept,],
-                                      matchLogPval)
-  overlaps <- GenomicRanges::findOverlaps(ScanTrack[GenomicRanges::strand(ScanTrack) == "+"], ScanTrack[GenomicRanges::strand(ScanTrack) == "-"],
-                                          ignore.strand = TRUE)
-  ScanTrack <- ScanTrack[-(length(ScanTrack[GenomicRanges::strand(ScanTrack) == "+"])+overlaps@to)]
+  if ((min(matchLogPval) >= log10(pval_threshold)) | length(kept) == 0){
+    ScanFw <- lapply(genome, Biostrings::matchPWM, pwm = pwm, with.score = TRUE, min.score = 0.8*Biostrings::maxScore(pwm))
+    ScanRw <- lapply(genome, Biostrings::matchPWM, pwm = Biostrings::reverseComplement(pwm), with.score = TRUE, min.score = 0.8*Biostrings::maxScore(pwm))
+    
+    NbMatchesFw <- unlist(lapply(ScanFw, length))
+    NbMatchesRw <- unlist(lapply(ScanRw, length))
+    seqnamesMatches <- S4Vectors::Rle(rep(names(ScanFw), 2),
+                                      c(NbMatchesFw, NbMatchesRw))
+    rangesMatches <- IRanges::IRanges(ScanFw[[1]]@ranges)
+    if (length(genome) > 1) {
+      for (i in seq(2, length(ScanFw))) {
+        rangesMatches <- c(rangesMatches, IRanges::IRanges(ScanFw[[i]]@ranges))
+      }
+    }
+    for (i in seq_along(ScanRw)) {
+      rangesMatches <- c(rangesMatches, IRanges::IRanges(ScanRw[[i]]@ranges))
+    }
+    strandMatches <- S4Vectors::Rle(c("+", "-"), c(sum(NbMatchesFw),
+                                                   sum(NbMatchesRw)))
+    scoreMatches <- rtracklayer::mcols(ScanFw[[1]])
+    if (length(genome) > 1) {
+      for (i in seq(2, length(ScanFw))) {
+        scoreMatches <- rbind(scoreMatches, rtracklayer::mcols(ScanFw[[i]]))
+      }
+    }
+    for (i in seq_along(ScanRw)) {
+      scoreMatches <- rbind(scoreMatches, rtracklayer::mcols(ScanRw[[i]]))
+    }
+    names(scoreMatches) <- "matchScore"
+    matchLogPval <- log10(pval_threshold)
+    ScanTrack <- GenomicRanges::GRanges(seqnames = seqnamesMatches,
+                                        ranges = rangesMatches, strand = strandMatches, scoreMatches,
+                                        matchLogPval = matchLogPval)
+    overlaps <- GenomicRanges::findOverlaps(ScanTrack[GenomicRanges::strand(ScanTrack) == "+"], ScanTrack[GenomicRanges::strand(ScanTrack) == "-"],
+                                            ignore.strand = TRUE)
+    ScanTrack <- ScanTrack[-(length(ScanTrack[GenomicRanges::strand(ScanTrack) == "+"])+overlaps@to)]
+  } else {
+
+    ScanTrack <- GenomicRanges::GRanges(seqnames = seqnamesMatches[kept],
+                                        ranges = rangesMatches[kept,], strand = strandMatches[kept], matchScore = scores,
+                                        matchLogPval = matchLogPval
+                                        )
+    overlaps <- GenomicRanges::findOverlaps(ScanTrack[GenomicRanges::strand(ScanTrack) == "+"], ScanTrack[GenomicRanges::strand(ScanTrack) == "-"],
+                                            ignore.strand = TRUE)
+    if (length(overlaps@to) > 0){
+    ScanTrack <- ScanTrack[-(length(ScanTrack[GenomicRanges::strand(ScanTrack) == "+"])+overlaps@to)]
+    }
+  }
   return(ScanTrack)
 }
 
@@ -2444,5 +2704,6 @@ getClosest <- function(GRanges_data, StructureTracks, modeling = TRUE,
                                          MetaData)
   return(GRanges_data)
 }
+
 
 
