@@ -9,7 +9,7 @@ predictTFBS(
   TFBSdata,
   studiedTFs = NULL,
   show_annotations = FALSE,
-  score_threshold = 0.5
+  score_threshold = 0.86
 )
 }
 \arguments{
@@ -71,7 +71,7 @@ PIF3BS.predictions <- predictTFBS(TFBSmodel.ex,
                                   TFBSdata.ex,
                                   studiedTFs = "PIF3")
 ##To get the transcripts whose expression is potentially regulated by PIF3 do as follows:
-PIF3_regulated.predictions <- as.character(PIF3BS.predictions$gene[!duplicated(PIF3BS.predictions)])
+PIF3_regulated.predictions <- as.character(PIF3BS.predictions$transcript[!duplicated(PIF3BS.predictions)])
 ###If you want to consider only the gene model,
 ###then do as follows:
 PIF3_regulated.predictions <- unlist(strsplit(PIF3_regulated.predictions, "[.]"))[seq(1, 2*length(PIF3_regulated.predictions),2)]
