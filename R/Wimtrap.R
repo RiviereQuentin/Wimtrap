@@ -223,7 +223,7 @@ importGenomicData <- function(organism = NULL,
     message("Downloading structural genomic ranges...")
     #@ Load the biomart database
     Ensembl <-
-      loadEnsembl(organism, NULL, NULL, NULL)
+      loadEnsembl(organism, NULL, NULL)
     #@ Query the database
     StructureBiomart <-
       getStructure(Ensembl, promoter_length, downstream_length, proximal_length)
@@ -314,7 +314,7 @@ importGenomicData <- function(organism = NULL,
 #' @importFrom GenomeInfoDb seqlevels seqnames
 #' @importFrom utils read.csv
 #' @importFrom biomartr getENSEMBLGENOMESInfo getENSEMBLInfo getGenome
-#' @importFrom biomaRt listMarts useMart listDatasets getBM
+#' @importFrom biomaRt listEnsembl listEnsemblGenomes useEnsemblGenomes searchDatasets getBM
 #' @importFrom methods as
 #' @importFrom IRanges IRanges resize
 #' @importFrom readr write_tsv
@@ -635,7 +635,7 @@ buildTFBSmodel <- function(TFBSdata,
 #' @importFrom GenomeInfoDb seqlevels seqnames
 #' @importFrom utils read.csv
 #' @importFrom biomartr getENSEMBLGENOMESInfo getENSEMBLInfo getGenome
-#' @importFrom biomaRt listMarts useMart listDatasets getBM
+#' @importFrom biomaRt listEnsembl listEnsemblGenomes useEnsemblGenomes searchDatasets getBM
 #' @importFrom methods as
 #' @importFrom IRanges IRanges resize
 #' @importFrom readr write_tsv
@@ -2057,71 +2057,55 @@ getRiddChr <- function (names)
 #========================================================================================#
 ### Make a connection to the biomart database (related to the given organism)
 #========================================================================================#
-loadEnsembl <- function (organism, host = NULL, biomart = NULL, dataset = NULL)
+loadEnsembl <- function (organism, biomart = NULL, dataset = NULL)
 {
-  OrganismsList <- data.frame(organism = c(), host = c(),
-                              dataset = c(), mart = c())
-  if (missing(host) || is.null(host)) {
-    Hosts <- c("ensembl.org", "bacteria.ensembl.org", "plants.ensembl.org",
-               "fungi.ensembl.org", "protists.ensembl.org", "ensemblgenomes.org",
-               "metazoa.ensembl.org")
-  }
-  else {
-    Hosts = host
-  }
-  for (Host in Hosts) {
-    ListMarts <- tryCatch(biomaRt::listMarts(host = Host),
-                          error = function(e) {
-                            return("No reachable")
-                          })
-    if (length(ListMarts) == 1 && ListMarts == "No reachable") {
-    }
-    else {
-      if (missing(biomart) | is.null(biomart)) {
-        Biomart <- ListMarts[1, 1]
-      }
-      else {
-        Biomart <- biomart
-      }
-      ensembl <- biomaRt::useMart(biomart = Biomart, host = Host)
-      ListDataSets <- biomaRt::listDatasets(ensembl)
-      OrganismsInHost <- data.frame(organism = ListDataSets$description,
-                                    host = rep(Host, length(ListDataSets$description)),
-                                    dataset = ListDataSets$dataset, mart = rep(Biomart,
-                                                                               length(ListDataSets$description)))
-      OrganismsList <- rbind(OrganismsList, OrganismsInHost)
-      if (Host == "ensembl.org") {
-        Biomart <- ListMarts[2, 1]
-        ensembl <- biomaRt::useMart(biomart = Biomart,
-                                    host = Host)
-        ListDataSets <- biomaRt::listDatasets(ensembl)
-        OrganismsInHost <- data.frame(organism = ListDataSets$description,
-                                      host = rep(Host, length(ListDataSets$description)),
-                                      dataset = ListDataSets$dataset, mart = rep(Biomart,
-                                                                                 length(ListDataSets$description)))
-        OrganismsList <- rbind(OrganismsList, OrganismsInHost)
-      }
-      else {
+  OrganismsList <- data.frame(organism = c(), dataset = c(), mart = c())
+  
+  biomartsEnsembl <- biomaRt::listEnsembl()$biomart[grep(pattern = "Genes", 
+                                                         x = biomaRt::listEnsembl()$version)]
+  biomartsEnsemblGenomes <- biomaRt::listEnsemblGenomes()$biomart[grep(pattern = "Genes", 
+                                                                       x = biomaRt::listEnsemblGenomes()$version)]
+  #Let's test at first whether the species considered is a plant species
+  
+  biomart_considered <- biomartsEnsemblGenomes[grep(pattern = "plant", x = biomartsEnsemblGenomes)][1]
+  ensembl_considered <- biomaRt::useEnsemblGenomes(biomart_considered)
+  dataset_searched <- biomaRt::searchDatasets(ensembl_considered, pattern = organism)[1,]
+  
+  Ensembl <- c()
+  
+  if (!is.null(dataset_searched)){
+    Ensembl <- biomaRt::useEnsemblGenomes(biomart_considered, dataset_searched$dataset)
+    return(Ensembl)
+  } else {
+    #Let's query for databases related to other life kingdoms
+    biomartsEnsemblGenomes <- biomartsEnsemblGenomes[-grep(pattern = "plant", x = biomartsEnsemblGenomes)]
+    for (biomart_considered in biomartsEnsemblGenomes) {
+      ensembl_considered <- biomaRt::useEnsemblGenomes(biomart_considered)
+      dataset_searched <- biomaRt::searchDatasets(ensembl_considered, pattern = organism)[1,]
+      if (!is.null(dataset_searched)){
+        Ensembl <- biomaRt::useEnsemblGenomes(biomart_considered, dataset_searched$dataset)
+        return(Ensembl)
       }
     }
   }
-  OrganismIndex <- base::grep(organism, OrganismsList$organism,
-                              ignore.case = TRUE)
-  if (length(OrganismIndex) == 0) {
-    warning(base::paste0(c("Biomart and/or host parameters are not appropriate.\nNo dataset related to",
-                           organism, "has been found.\nThe current parameters are:\nbiomart:",
-                           base::paste(biomart, ","), "\nhost:", base::paste(Hosts,
-                                                                             ","))))
+  
+  if(length(Ensembl)==0){
+    #Do we have a Ensembl genome?
+    for (biomart_considered in biomartsEnsembl) {
+      ensembl_considered <- biomaRt::useEnsembl(biomart_considered)
+      dataset_searched <- biomaRt::searchDatasets(ensembl_considered, pattern = organism)[1,]
+      if (!is.null(dataset_searched)){
+        Ensembl <- biomaRt::useEnsembl(biomart_considered, dataset_searched$dataset)
+        return(Ensembl)
+      }
+    }
+  }
+  
+  if (length(Ensembl) == 0) {
+    warning(base::paste0(c("Error: no dataset related to ",
+                           organism, " has been found.")))
     stop()
   }
-  biomart <- ifelse(missing(biomart) || is.null(biomart),
-                    as.character(OrganismsList$mart[OrganismIndex]), biomart)
-  dataset <- ifelse(missing(dataset) || is.null(dataset),
-                    OrganismsList$dataset[OrganismIndex], dataset)
-  host <- ifelse(missing(host) || is.null(host), as.character(OrganismsList$host[OrganismIndex]),
-                 host)
-  Ensembl <- biomaRt::useMart(biomart, dataset, host)
-  return(Ensembl)
 }
 
 #________________________________________________________________________________________#
@@ -2212,7 +2196,7 @@ getStructure <- function (ensembl, promoter_length = 2000, downstream_length = 1
     Widths <- structure[, 3] - structure[, 2] + 1
     structure <- structure[which(Widths > 0), ]
     chromosome_name <- structure$chromosome_name
-    chromosome_name <- getRiddChr(chromosome_name)
+    chromosome_name <- Wimtrap:::getRiddChr(chromosome_name)
     Track <- data.frame(seqnames = chromosome_name,
                         start = structure[,2],
                         end = structure[,3],
