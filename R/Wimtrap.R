@@ -313,7 +313,14 @@ importGenomicData <- function(organism = NULL,
 #' @importFrom Biostrings readDNAStringSet width Views matchPWM reverseComplement letterFrequency
 #' @importFrom GenomeInfoDb seqlevels seqnames
 #' @importFrom utils read.csv
-#' @importFrom biomartr getENSEMBLGENOMESInfo getENSEMBLInfo getGenome
+#' @importFrom biomartr getENSEMBLGENOMESInfo getENSEMBLInfo getGenome getKingdoms
+#' @importFrom readr read_tsv cols col_character col_integer col_date write_tsv
+#' @importFrom stringr str_to_lower str_replace_all str_to_upper str_sub str_replace_all str_detect
+#' @importFrom jsonlite fromJSON
+#' @importFrom utils download.file
+#' @importFrom dplyr bind_rows mutate filter setdiff
+#' @importFrom curl curl_fetch_memory
+#' @importFrom tibble as_tibble
 #' @importFrom biomaRt listEnsembl listEnsemblGenomes useEnsemblGenomes searchDatasets getBM
 #' @importFrom methods as
 #' @importFrom IRanges IRanges resize
@@ -2009,9 +2016,12 @@ readPSFM <- function (file_path)
 #========================================================================================#
 getChromosomes <- function(organism)
 {
-  file_path <- biomartr::getGenome( db = "genbank",
+  file_path <- tryCatch(getsequence(organism = organism), error = function(e) {return(NULL)}, finally = message("Interrogating Ensembl Plants"))
+  if(is.null(file_path)) {
+    file_path <- biomartr::getGenome( db = "ensemblgenomes",
                           organism,
                           path = file.path("_ncbi_downloads","genomes"))
+    }
   Genome <- Biostrings::readDNAStringSet(file_path)
   ChrNames <- GenomeInfoDb::seqlevels(Genome)
   SplitChrNames <- unlist(lapply(as.list(ChrNames), base::strsplit,
@@ -2689,5 +2699,359 @@ getClosest <- function(GRanges_data, StructureTracks, modeling = TRUE,
   return(GRanges_data)
 }
 
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Allows to quickly download plant genome sequences. Function modified from biomaRt
+#========================================================================================#
+getsequence <- function (organism, release = NULL, type = "dna", id.type = "toplevel"){
+  if (!is.element(type, c("dna", "cds", "pep", "ncrna"))) 
+    stop("Please a 'type' argument supported by this function: \n                 'dna', 'cds', 'pep', 'ncrna'.")
+  name <- NULL
+  if (!suppressMessages(is.available.genome(organism = organism, 
+                                            db = "ensemblgenomes", details = FALSE))) {
+    warning("Unfortunately organism '", organism, "' is not available at ENSEMBLGENOMES. ", 
+            "Please check whether or not the organism name is typed correctly or try db = 'ensembl'.", 
+            " Thus, download of this species has been omitted. ", 
+            call. = FALSE)
+    return(FALSE)
+  }
+  else {
+    taxon_id <- assembly <- accession <- NULL
+    new.organism <- stringr::str_to_lower(stringr::str_replace_all(organism, 
+                                                                   " ", "_"))
+    ensembl_summary <- suppressMessages(as.data.frame(unlist(is.available.genome(organism = organism, 
+                                                                                 db = "ensemblgenomes", details = TRUE))))
+    if (nrow(ensembl_summary) == 0) {
+      message("Unfortunately, organism '", organism, "' does not exist in this database. Could it be that the organism name is misspelled? Thus, download has been omitted.")
+      return(FALSE)
+    }
+    new.organism <- paste0(stringr::str_to_upper(stringr::str_sub(ensembl_summary$name[1], 
+                                                                  1, 1)), stringr::str_sub(ensembl_summary$name[1], 
+                                                                                           2, nchar(ensembl_summary$name[1])))
+  }
+  get.org.info <- ensembl_summary
+  rest_url <- paste0("http://rest.ensembl.org/info/assembly/", 
+                     ensembl_summary["name",], "?content-type=application/json")
+  rest_api_status <- test_url_status(url = rest_url, organism = organism)
+  if (is.logical(rest_api_status)) {
+    return(FALSE)
+  }
+  else {
+    release_api <- jsonlite::fromJSON("http://rest.ensembl.org/info/eg_version?content-type=application/json")
+    if (!is.null(release)) {
+      if (!is.element(release, seq_len(as.integer(release_api)))) 
+        stop("Please provide a release number that is supported by ENSEMBLGENOMES.", 
+             call. = FALSE)
+    }
+    if (is.null(release)) 
+      core_path <- "http://ftp.ensemblgenomes.org/pub/current/"
+    if (!is.null(release)) 
+      core_path <- paste0("http://ftp.ensemblgenomes.org/pub/current", 
+                          release, "/")
+    ensembl.qry <- paste0(core_path, stringr::str_to_lower(stringr::str_replace(get.org.info$division[1], 
+                                                                                "Ensembl", "")), "plants/fasta/",
+                          stringr::str_to_lower(ensembl_summary["name",]), 
+                          "/", type, "/", paste0(ensembl_summary["url_name",], ".", rest_api_status$default_coord_system_version, 
+                                                 ".", "dna_rm", ifelse(id.type == "none", "", "."), 
+                                                 ifelse(id.type == "none", "", id.type), ".fa.gz"))
+    
+    if (file.exists(file.path(path, paste0(new.organism, 
+                                           ".", rest_api_status$default_coord_system_version, 
+                                           ".", type, ifelse(id.type == "none", "", "."), ifelse(id.type == 
+                                                                                                 "none", "", id.type), ".fa.gz")))) {
+      message("File ", file.path(path, paste0(new.organism, 
+                                              ".", rest_api_status$default_coord_system_version, 
+                                              ".", type, ifelse(id.type == "none", "", "."), 
+                                              ifelse(id.type == "none", "", id.type), ".fa.gz")), 
+              " exists already. Thus, download has been skipped.")
+    }
+    else {
+      path <- getwd()
+      file.fasta <- file.path(path, 
+                              paste0(ensembl_summary["name",], ".", rest_api_status$default_coord_system_version, 
+                                     ".", type, ifelse(id.type == "none", "", "."), 
+                                     ifelse(id.type == "none", "", id.type), ".fa.gz"))
+      utils::download.file(url = ensembl.qry, destfile = file.fasta)
+    }
+    return(file.fasta)
+  }
+}
 
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Checks whether the genome sequence of the considered organism can be quickly
+### downloaded with getsequence. Function modified from biomaRt
+#========================================================================================#
+is.available.genome <- function (db = "refseq", organism, details = FALSE) 
+{
+  if (is.element(db, c("refseq", "genbank"))) {
+    if (file.exists(file.path(tempdir(), paste0("AssemblyFilesAllKingdoms_", 
+                                                db, ".txt")))) {
+      suppressWarnings(AssemblyFilesAllKingdoms <- readr::read_tsv(file.path(tempdir(), 
+                                                                             paste0("AssemblyFilesAllKingdoms_", db, ".txt")), 
+                                                                   col_names = c("assembly_accession", "bioproject", 
+                                                                                 "biosample", "wgs_master", "refseq_category", 
+                                                                                 "taxid", "species_taxid", "organism_name", 
+                                                                                 "infraspecific_name", "isolate", "version_status", 
+                                                                                 "assembly_level", "release_type", "genome_rep", 
+                                                                                 "seq_rel_date", "asm_name", "submitter", "gbrs_paired_asm", 
+                                                                                 "paired_asm_comp", "ftp_path", "excluded_from_refseq"), 
+                                                                   comment = "#", col_types = readr::cols(assembly_accession = readr::col_character(), 
+                                                                                                          bioproject = readr::col_character(), biosample = readr::col_character(), 
+                                                                                                          wgs_master = readr::col_character(), refseq_category = readr::col_character(), 
+                                                                                                          taxid = readr::col_integer(), species_taxid = readr::col_integer(), 
+                                                                                                          organism_name = readr::col_character(), infraspecific_name = readr::col_character(), 
+                                                                                                          isolate = readr::col_character(), version_status = readr::col_character(), 
+                                                                                                          assembly_level = readr::col_character(), release_type = readr::col_character(), 
+                                                                                                          genome_rep = readr::col_character(), seq_rel_date = readr::col_date(), 
+                                                                                                          asm_name = readr::col_character(), submitter = readr::col_character(), 
+                                                                                                          gbrs_paired_asm = readr::col_character(), 
+                                                                                                          paired_asm_comp = readr::col_character(), 
+                                                                                                          ftp_path = readr::col_character(), excluded_from_refseq = readr::col_character())))
+    }
+    else {
+      kgdoms <- biomartr::getKingdoms(db = db)(db = db)
+      storeAssemblyFiles <- vector("list", length(kgdoms))
+      for (i in seq_along(kgdoms)) {
+        storeAssemblyFiles[i] <- list(getSummaryFile(db = db, 
+                                                     kingdom = kgdoms[i]))
+      }
+      AssemblyFilesAllKingdoms <- dplyr::bind_rows(storeAssemblyFiles)
+      readr::write_tsv(AssemblyFilesAllKingdoms, file.path(tempdir(), 
+                                                           paste0("AssemblyFilesAllKingdoms_", db, ".txt")))
+    }
+    organism_name <- assembly_accession <- taxid <- NULL
+    orgs <- stringr::str_replace_all(AssemblyFilesAllKingdoms$organism_name, 
+                                     "\\(", "")
+    orgs <- stringr::str_replace_all(orgs, "\\)", "")
+    AssemblyFilesAllKingdoms <- dplyr::mutate(AssemblyFilesAllKingdoms, 
+                                              organism_name = orgs)
+    organism <- stringr::str_replace_all(organism, "\\(", 
+                                         "")
+    organism <- stringr::str_replace_all(organism, "\\)", 
+                                         "")
+    if (!is.taxid(organism)) {
+      FoundOrganism <- dplyr::filter(AssemblyFilesAllKingdoms, 
+                                     stringr::str_detect(organism_name, organism) | 
+                                       assembly_accession == organism)
+    }
+    else {
+      FoundOrganism <- dplyr::filter(AssemblyFilesAllKingdoms, 
+                                     taxid == as.integer(organism))
+    }
+    if (nrow(FoundOrganism) == 0) {
+      message("Unfortunatey, no entry for '", organism, 
+              "' was found in the '", db, "' database. ", 
+              "Please consider specifying ", paste0("'db = ", 
+                                                    dplyr::setdiff(c("refseq", "genbank", "ensembl", 
+                                                                     "ensemblgenomes", "uniprot"), db), collapse = "' or "), 
+              "' to check whether '", organism, "' is available in these databases.")
+      return(FALSE)
+    }
+    if (nrow(FoundOrganism) > 0) {
+      if (!details) {
+        if (all(FoundOrganism$refseq_category == "na")) {
+          message("Only a non-reference genome assembly is available for '", 
+                  organism, "'.", " Please make sure to specify the argument 'reference = FALSE' when running any get*() function.")
+        }
+        else {
+          message("A reference or representative genome assembly is available for '", 
+                  organism, "'.")
+        }
+        if (nrow(FoundOrganism) > 1) {
+          message("More than one entry was found for '", 
+                  organism, "'.", " Please consider to run the function 'is.available.genome()' and specify 'is.available.genome(organism = ", 
+                  organism, ", db = ", db, ", details = TRUE)'.", 
+                  " This will allow you to select the 'assembly_accession' identifier that can then be ", 
+                  "specified in all get*() functions.")
+        }
+        return(TRUE)
+      }
+      if (details) {
+        if (all(FoundOrganism$refseq_category == "na")) {
+          message("Only a non-reference genome assembly is available for '", 
+                  organism, "'.", " Please make sure to specify the argument 'reference = FALSE' when running any get*() function.")
+        }
+        return(FoundOrganism)
+      }
+    }
+  }
+  if (db == "ensembl") {
+    name <- accession <- accession <- assembly <- taxon_id <- NULL
+    new.organism <- stringr::str_replace_all(organism, " ", 
+                                             "_")
+    ensembl.available.organisms <- get.ensembl.info()
+    ensembl.available.organisms <- dplyr::filter(ensembl.available.organisms, 
+                                                 !is.na(assembly))
+    if (!is.taxid(organism)) {
+      selected.organism <- dplyr::filter(ensembl.available.organisms, 
+                                         stringr::str_detect(name, stringr::str_to_lower(new.organism)) | 
+                                           accession == organism, !is.na(assembly))
+    }
+    else {
+      selected.organism <- dplyr::filter(ensembl.available.organisms, 
+                                         taxon_id == as.integer(organism), !is.na(assembly))
+    }
+    if (!details) {
+      if (nrow(selected.organism) == 0) {
+        message("Unfortunatey, no entry for '", organism, 
+                "' was found in the '", db, "' database. ", 
+                "Please consider specifying ", paste0("'db = ", 
+                                                      dplyr::setdiff(c("refseq", "genbank", "ensembl", 
+                                                                       "ensemblgenomes", "uniprot"), db), collapse = "' or "), 
+                "' to check whether '", organism, "' is available in these databases.")
+        return(FALSE)
+      }
+      if (nrow(selected.organism) > 0) {
+        message("A reference or representative genome assembly is available for '", 
+                organism, "'.")
+        if (nrow(selected.organism) > 1) {
+          message("More than one entry was found for '", 
+                  organism, "'.", " Please consider to run the function 'is.available.genome()' and specify 'is.available.genome(organism = ", 
+                  organism, ", db = ", db, ", details = TRUE)'.", 
+                  " This will allow you to select the 'assembly_accession' identifier that can then be ", 
+                  "specified in all get*() functions.")
+        }
+        return(TRUE)
+      }
+    }
+    if (details) 
+      return(selected.organism)
+  }
+  if (db == "ensemblgenomes") {
+    new.organism <- stringr::str_replace_all(organism, " ", 
+                                             "_")
+    name <- accession <- assembly <- taxon_id <- NULL
+    selected.organism <- get.ensemblgenome.info(new.organism)
+    if (!details) {
+      if (length(selected.organism) == 0) {
+        message("Unfortunatey, no entry for '", organism, 
+                "' was found in the '", db, "' database. ", 
+                "Please consider specifying ", paste0("'db = ", 
+                                                      dplyr::setdiff(c("refseq", "genbank", "ensembl", 
+                                                                       "ensemblgenomes", "uniprot"), db), collapse = "' or "), 
+                "' to check whether '", organism, "' is available in these databases.")
+        return(FALSE)
+      } else {
+        return(TRUE)
+      }
+    }
+    if (details) 
+      return(selected.organism)
+  }
+  if (db == "uniprot") {
+    if (is.taxid(organism)) {
+      unipreot_rest_url <- paste0("https://www.ebi.ac.uk/proteins/api/proteomes?offset=0&size=-1&taxid=", 
+                                  as.integer(organism))
+      rest_status_test <- curl::curl_fetch_memory(unipreot_rest_url)
+      if (rest_status_test$status_code != 200) {
+        message("Something went wrong when trying to access the API 'https://www.ebi.ac.uk/proteins/api/proteomes'.", 
+                " Sometimes the internet connection isn't stable and re-running the function might help. Otherwise, could there be an issue with the firewall? ", 
+                "Is it possbile to access the homepage 'https://www.ebi.ac.uk/' through your browser?")
+      }
+      uniprot_species_info <- tibble::as_tibble(jsonlite::fromJSON(unipreot_rest_url))
+    }
+    else {
+      organism_new <- stringr::str_replace_all(organism, 
+                                               " ", "%20")
+      unipreot_rest_url_name <- paste0("https://www.ebi.ac.uk/proteins/api/proteomes?offset=0&size=-1&name=", 
+                                       organism_new)
+      rest_status_test_name <- curl::curl_fetch_memory(unipreot_rest_url_name)
+      unipreot_rest_url_upid <- paste0("https://www.ebi.ac.uk/proteins/api/proteomes?offset=0&size=-1&upid=", 
+                                       organism)
+      rest_status_test_upid <- curl::curl_fetch_memory(unipreot_rest_url_upid)
+      if ((rest_status_test_upid$status_code != 200) & 
+          (rest_status_test_name$status_code != 200)) {
+        message("Something went wrong when trying to access the API 'https://www.ebi.ac.uk/proteins/api/proteomes'.", 
+                " Sometimes the internet connection isn't stable and re-running the function might help. Otherwise, could there be an issue with the firewall? ", 
+                "Is it possbile to access the homepage 'https://www.ebi.ac.uk/' through your browser?")
+      }
+      if (rest_status_test_name$status_code == 200) {
+        uniprot_species_info <- tibble::as_tibble(jsonlite::fromJSON(unipreot_rest_url_name))
+      }
+      if (rest_status_test_upid$status_code == 200) {
+        uniprot_species_info <- tibble::as_tibble(jsonlite::fromJSON(unipreot_rest_url_upid))
+      }
+    }
+    if (!details) {
+      if (nrow(uniprot_species_info) == 0) {
+        message("Unfortunatey, no entry for '", organism, 
+                "' was found in the '", db, "' database. ", 
+                "Please consider specifying ", paste0("'db = ", 
+                                                      dplyr::setdiff(c("refseq", "genbank", "ensembl", 
+                                                                       "ensemblgenomes", "uniprot"), db), collapse = "' or "), 
+                "' to check whether '", organism, "' is available in these databases.")
+        return(FALSE)
+      }
+      if (nrow(uniprot_species_info) > 0) {
+        message("A reference or representative genome assembly is available for '", 
+                organism, "'.")
+        if (nrow(uniprot_species_info) > 1) {
+          message("More than one entry was found for '", 
+                  organism, "'.", " Please consider to run the function 'is.available.genome()' and specify 'is.available.genome(organism = ", 
+                  organism, ", db = ", db, ", details = TRUE)'.", 
+                  " This will allow you to select the 'assembly_accession' identifier that can then be ", 
+                  "specified in all get*() functions.")
+        }
+        return(TRUE)
+      }
+    }
+  }
+  if (details) 
+    return(uniprot_species_info)
+}
 
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Hidden function from biomartr
+#========================================================================================#
+get.ensembl.info <- function (update = FALSE) 
+{
+  if (file.exists(file.path(tempdir(), "ensembl_info.tsv")) && 
+      !update) {
+    suppressWarnings(ensembl.info <- readr::read_tsv(file.path(tempdir(), 
+                                                               "ensembl_info.tsv"), col_names = TRUE, col_types = readr::cols(division = readr::col_character(), 
+                                                                                                                              taxon_id = readr::col_integer(), name = readr::col_character(), 
+                                                                                                                              release = readr::col_integer(), display_name = readr::col_character(), 
+                                                                                                                              accession = readr::col_character(), common_name = readr::col_character(), 
+                                                                                                                              assembly = readr::col_character())))
+  }
+  else {
+    rest_url <- "http://rest.ensembl.org/info/species?content-type=application/json"
+    rest_api_status <- curl::curl_fetch_memory(rest_url)
+    if (rest_api_status$status_code != 200) {
+      message("The API 'http://rest.ensembl.org' does not seem to\n                respond or work properly. Is the homepage 'http://rest.ensembl.org' currently available?", 
+              " Could it be that there is a firewall issue on your side? Please re-run the function and check if it works now.")
+    }
+    ensembl.info <- tibble::as_tibble(jsonlite::fromJSON(rest_url)$species)
+    aliases <- groups <- NULL
+    ensembl.info <- dplyr::select(ensembl.info, -aliases, 
+                                  -groups)
+    readr::write_tsv(ensembl.info, file.path(tempdir(), 
+                                             "ensembl_info.tsv"))
+  }
+  return(ensembl.info)
+}
+
+is.taxid <- function (x) 
+{
+  return(stringr::str_count(x, "[:digit:]") == nchar(x))
+}
+
+test_url_status <- function (url, organism) 
+{
+  test_status <- curl::curl_fetch_memory(url)
+  if (test_status$status_code == 200) {
+    json.qry.info <- jsonlite::fromJSON(url)
+    return(json.qry.info)
+  }
+  else {
+    message("Something went wrong when trying to access the url: ", 
+            url, ". It seems like the organism '", organism, 
+            "' does not exist in this database. Could it be that the organism name is misspelled? Thus, download has been omitted.")
+    return(FALSE)
+  }
+}
