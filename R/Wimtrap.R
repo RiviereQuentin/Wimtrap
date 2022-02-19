@@ -2024,23 +2024,25 @@ getChromosomes <- function(organism)
                           path = file.path("_ncbi_downloads","genomes"))
     Genome <- Biostrings::readDNAStringSet(file_path)
     ChrNames <- GenomeInfoDb::seqlevels(Genome)
-    SplitChrNames <- lapply(as.list(ChrNames), base::strsplit,
-                                   split = " ")
-    SplitChrNames <- unlist(lapply(SplitChrNames, function(names) {
-      return(names[[1]][1])}))
-    ChrNames <- getRiddChr(ChrNames)
-    Genome <- Genome[1:length(ChrNames)]
-    names(Genome) <- ChrNames
-  } else {
-    Genome <- Biostrings::readDNAStringSet(file_path)
-    ChrNames <- GenomeInfoDb::seqlevels(Genome)
     SplitChrNames <- unlist(lapply(as.list(ChrNames), base::strsplit,
                                    split = " "))
     FieldNumber <- which(SplitChrNames=="chromosome")
     ChrNames <- SplitChrNames[FieldNumber+1]
     ChrNames <- getRiddChr(ChrNames)
+
+  } else {
     Genome <- Genome[1:length(ChrNames)]
     names(Genome) <- ChrNames
+    Genome <- Biostrings::readDNAStringSet(file_path)
+    ChrNames <- GenomeInfoDb::seqlevels(Genome)
+    SplitChrNames <- lapply(as.list(ChrNames), base::strsplit,
+                            split = " ")
+    SplitChrNames <- unlist(lapply(SplitChrNames, function(names) {
+      return(names[[1]][1])}))
+    ChrNames <- getRiddChr(ChrNames)
+    Genome <- Genome[1:length(ChrNames)]
+    names(Genome) <- ChrNames
+
     }
   
   return(Genome)
