@@ -2726,9 +2726,9 @@ getsequence <- function (organism, release = NULL, type = "dna", id.type = "topl
       message("Unfortunately, organism '", organism, "' does not exist in this database. Could it be that the organism name is misspelled? Thus, download has been omitted.")
       return(FALSE)
     }
-    new.organism <- paste0(stringr::str_to_upper(stringr::str_sub(ensembl_summary$name[1], 
-                                                                  1, 1)), stringr::str_sub(ensembl_summary$name[1], 
-                                                                                           2, nchar(ensembl_summary$name[1])))
+    new.organism <- paste0(stringr::str_to_upper(stringr::str_sub(ensembl_summary["name",], 
+                                                                  1, 1)), stringr::str_sub(ensembl_summary["name",], 
+                                                                                           2, nchar(ensembl_summary["name",])))
   }
   get.org.info <- ensembl_summary
   rest_url <- paste0("http://rest.ensembl.org/info/assembly/", 
@@ -2924,7 +2924,7 @@ is.available.genome <- function (db = "refseq", organism, details = FALSE)
     new.organism <- stringr::str_replace_all(organism, " ", 
                                              "_")
     name <- accession <- assembly <- taxon_id <- NULL
-    selected.organism <- get.ensemblgenome.info(new.organism)
+    selected.organism <- getensemblgenome.info(new.organism)
     if (!details) {
       if (length(selected.organism) == 0) {
         message("Unfortunatey, no entry for '", organism, 
@@ -3006,7 +3006,23 @@ is.available.genome <- function (db = "refseq", organism, details = FALSE)
 #________________________________________________________________________________________#
 #HIDDEN FUNCTION
 #========================================================================================#
-### Hidden function from biomartr
+### Outputs information about the storage of the genome sequence of the plant species
+### of interest on Ensembl genomes.
+#========================================================================================#
+getensemblgenome.info <- function(organism){
+  server <- "https://rest.ensembl.org"
+  ext <- paste0("/info/genomes/", organism, "?")
+  r <- httr::GET(paste(server, ext, sep = ""), httr::content_type("application/json"))
+  httr::stop_for_status(r)
+
+  dataorganism <- jsonlite::fromJSON(jsonlite::toJSON(httr::content(r)))
+  return(dataorganism)
+}
+
+#________________________________________________________________________________________#
+#HIDDEN FUNCTION
+#========================================================================================#
+### Hidden functions from biomartr
 #========================================================================================#
 get.ensembl.info <- function (update = FALSE) 
 {
@@ -3054,33 +3070,4 @@ test_url_status <- function (url, organism)
             "' does not exist in this database. Could it be that the organism name is misspelled? Thus, download has been omitted.")
     return(FALSE)
   }
-}
-
-get.ensemblgenome.info <- function (update = FALSE) 
-{
-  if (file.exists(file.path(tempdir(), "ensemblgenome_info.tsv")) && 
-      !update) {
-    suppressWarnings(ensemblgenome.info <- readr::read_tsv(file.path(tempdir(), 
-                                                                     "ensemblgenome_info.tsv"), col_names = TRUE, col_types = readr::cols(division = readr::col_character(), 
-                                                                                                                                          taxon_id = readr::col_integer(), name = readr::col_character(), 
-                                                                                                                                          release = readr::col_integer(), display_name = readr::col_character(), 
-                                                                                                                                          accession = readr::col_character(), common_name = readr::col_character(), 
-                                                                                                                                          assembly = readr::col_character())))
-  }
-  else {
-    message("Starting retrieval of information for all species stored in ENSEMBLGENOMES... This needs to be done only once.")
-    rest_url <- "http://rest.ensembl.org/info/species?content-type=application/json"
-    rest_api_status <- curl::curl_fetch_memory(rest_url)
-    if (rest_api_status$status_code != 200) {
-      message("The API 'rest.ensembl.org' does not \n                seem to respond or work properly.\n                Is the homepage 'rest.ensembl.org' \n                currently available?", 
-              " Could it be that there is a firewall issue on your side? Please re-run the function and check if it works now.")
-    }
-    ensemblgenome.info <- tibble::as_tibble(jsonlite::fromJSON(rest_url)$species)
-    aliases <- groups <- NULL
-    ensemblgenome.info <- dplyr::select(ensemblgenome.info, 
-                                        -aliases, -groups)
-    readr::write_tsv(ensemblgenome.info, file.path(tempdir(), 
-                                                   "ensemblgenome_info.tsv"))
-  }
-  return(ensemblgenome.info)
 }
