@@ -316,7 +316,7 @@ importGenomicData <- function(organism = NULL,
 #' @importFrom biomartr getENSEMBLGENOMESInfo getENSEMBLInfo getGenome getKingdoms
 #' @importFrom readr read_tsv cols col_character col_integer col_date write_tsv
 #' @importFrom stringr str_to_lower str_replace_all str_to_upper str_sub str_replace_all str_detect
-#' @importFrom jsonlite fromJSON
+#' @importFrom jsonlite fromJSON toJSON
 #' @importFrom utils download.file
 #' @importFrom dplyr bind_rows mutate filter setdiff
 #' @importFrom curl curl_fetch_memory
@@ -328,7 +328,8 @@ importGenomicData <- function(organism = NULL,
 #' @importFrom data.table fread data.table
 #' @importFrom graphics hist
 #' @importFrom stats runif median IQR
-#' @importFrom  universalmotif read_cisbp read_homer read_jaspar read_meme read_transfac
+#' @importFrom universalmotif read_cisbp read_homer read_jaspar read_meme read_transfac
+#' @importFrom httr GET content_type stop_for_status content
 #' @description
 #' `getTFBSdata` writes files encoding for datasets characterizing the genomic context
 #' around motif occurences along the genome for the considered transcription factors
@@ -2760,6 +2761,7 @@ getsequence <- function (organism, release = NULL, type = "dna", id.type = "topl
                                            ".", rest_api_status$default_coord_system_version, 
                                            ".", type, ifelse(id.type == "none", "", "."), ifelse(id.type == 
                                                                                                  "none", "", id.type), ".fa.gz")))) {
+      path <- getwd()
       message("File ", file.path(path, paste0(new.organism, 
                                               ".", rest_api_status$default_coord_system_version, 
                                               ".", type, ifelse(id.type == "none", "", "."), 
