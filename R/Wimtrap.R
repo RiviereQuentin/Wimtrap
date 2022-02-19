@@ -2029,6 +2029,8 @@ getChromosomes <- function(organism)
     FieldNumber <- which(SplitChrNames=="chromosome")
     ChrNames <- SplitChrNames[FieldNumber+1]
     ChrNames <- getRiddChr(ChrNames)
+    Genome <- Genome[1:length(ChrNames)]
+    names(Genome) <- ChrNames
 
   } else {
     Genome <- Genome[1:length(ChrNames)]
@@ -2039,7 +2041,7 @@ getChromosomes <- function(organism)
                             split = " ")
     SplitChrNames <- unlist(lapply(SplitChrNames, function(names) {
       return(names[[1]][1])}))
-    ChrNames <- getRiddChr(ChrNames)
+    ChrNames <- getRiddChr(SplitChrNames)
     Genome <- Genome[1:length(ChrNames)]
     names(Genome) <- ChrNames
 
