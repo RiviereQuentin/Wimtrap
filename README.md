@@ -18,6 +18,8 @@ In R, type the following lines:
   
 Then, you can enter:
 ```
+  options(repos = BiocManager::repositories())
+  getOption("repos")
   BiocManager::install("RiviereQuentin/Wimtrap",                     
     dependencies = TRUE,                     
     build_vignettes = TRUE,
