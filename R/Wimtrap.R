@@ -493,7 +493,6 @@ buildTFBSmodel <- function(TFBSdata,
                            TFs_validation = NULL,
                            model_assessment = TRUE,
                            xgb_modeling = TRUE){
-  ChIP_regions <- listChIPRegions(ChIPpeaks, NULL, ChIPpeaks_length)
   DataSet <- data.frame()
   if (length(names(ChIPpeaks))==0 &length(TFBSdata) == 1) {names(ChIPpeaks) == names(TFBSdata)}
   if (is.list(TFBSdata)) {
@@ -502,6 +501,7 @@ buildTFBSmodel <- function(TFBSdata,
     TFBSdata.validation <- NULL
     TFBSdata.training <- NULL
   } else {
+    ChIP_regions <- listChIPRegions(ChIPpeaks, NULL, ChIPpeaks_length)
     for (trainingTF in names(ChIPpeaks)){
        considered <- data.table::fread(TFBSdata[trainingTF],
                                        stringsAsFactors = TRUE)
