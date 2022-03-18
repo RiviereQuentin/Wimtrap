@@ -442,7 +442,8 @@ getTFBSdata <- function(pfm = NULL,
 #' (i.e. ChIP-seq 'validated' or 'not-validated' in a given condition).
 #' @param TFBSdata A named character vector as output by the [getTFBSdata()] function, defining the local paths
 #' to files encoding for the results of pattern-matching and geonmic feature extraction for the training TFs and/or
-#' studied TFs.
+#' studied TFs. Alternatively, it can be a list of 2 GRanges objects, as outp by `buildTFBSmode` with the option
+#' \code{xgb_modeling = FALSE}. The fist object represents the training dataset, the second, the validation one.
 #' @param  ChIPpeaks A named character vector defining the local paths to BED files encoding the
 #' location of ChIP-peaks. The vector is named according to the training transcription factors
 #' that are described by the files indicated. **Caution**: the names of the \code{ChIPpeaks} have to find
@@ -495,96 +496,102 @@ buildTFBSmodel <- function(TFBSdata,
   ChIP_regions <- listChIPRegions(ChIPpeaks, NULL, ChIPpeaks_length)
   DataSet <- data.frame()
   if (length(names(ChIPpeaks))==0 &length(TFBSdata) == 1) {names(ChIPpeaks) == names(TFBSdata)}
-  for (trainingTF in names(ChIPpeaks)){
-     considered <- data.table::fread(TFBSdata[trainingTF],
-                                     stringsAsFactors = TRUE)
-     considered$TF <- trainingTF
-     considered <- GenomicRanges::makeGRangesFromDataFrame(considered,
-                                                           keep.extra.columns = TRUE)
-     validated_TFBS <- GenomicRanges::findOverlaps(considered, ChIP_regions[[trainingTF]], select = "all")
-     considered <- as.data.frame(considered)
-     considered$ChIP.peak <- 0
-     considered$ChIP.peak[validated_TFBS@from[!duplicated(validated_TFBS@from)]] <- 1
-     NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
-     DataSet <- rbind(DataSet,
-                      considered[considered$ChIP.peak == 1,],
-                      considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
-     rm(considered)
-  }
-  DataSet <- data.table::as.data.table(DataSet)
-  TFBSdata <- DataSet[,-seq(1,5), with = FALSE]
-  rm(DataSet)
-  #Split the dataset into a training and a validation datasets
-  if(is.null(TFs_validation)){
-    trainind <- sample(seq(1,nrow(TFBSdata)), as.integer(nrow(TFBSdata)*0.8))
-    testind <- seq(1,nrow(TFBSdata))[!(seq(1,nrow(TFBSdata)) %in% trainind)]
+  if(is.list(TFBSdata)){
+    train <- TFBSdata[[1]]
+    test <- TFBSdata[[2]]
+    
   } else {
-    trainind <- which(TFBSdata$TF %in% TFs_validation)
-    testind <- which(!(TFBSdata$TF) %in% TFs_validation)
+    for (trainingTF in names(ChIPpeaks)){
+       considered <- data.table::fread(TFBSdata[trainingTF],
+                                       stringsAsFactors = TRUE)
+       considered$TF <- trainingTF
+       considered <- GenomicRanges::makeGRangesFromDataFrame(considered,
+                                                             keep.extra.columns = TRUE)
+       validated_TFBS <- GenomicRanges::findOverlaps(considered, ChIP_regions[[trainingTF]], select = "all")
+       considered <- as.data.frame(considered)
+       considered$ChIP.peak <- 0
+       considered$ChIP.peak[validated_TFBS@from[!duplicated(validated_TFBS@from)]] <- 1
+       NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
+       DataSet <- rbind(DataSet,
+                        considered[considered$ChIP.peak == 1,],
+                        considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
+       rm(considered)
+    }
+    DataSet <- data.table::as.data.table(DataSet)
+    TFBSdata <- DataSet[,-seq(1,5), with = FALSE]
+    rm(DataSet)
+    #Split the dataset into a training and a validation datasets
+    if(is.null(TFs_validation)){
+      trainind <- sample(seq(1,nrow(TFBSdata)), as.integer(nrow(TFBSdata)*0.8))
+      testind <- seq(1,nrow(TFBSdata))[!(seq(1,nrow(TFBSdata)) %in% trainind)]
+    } else {
+      trainind <- which(TFBSdata$TF %in% TFs_validation)
+      testind <- which(!(TFBSdata$TF) %in% TFs_validation)
+    }
+    TFBSdata.training <- TFBSdata[trainind,]
+    TFBSdata.validation <- TFBSdata[testind,]
+    #Pre-processing of the training dataset
+    ##Remove columns that do not have to be taken into account
+    if (length(grep(pattern = "matchScore", colnames(TFBSdata.training))) > 0){
+      torm <- grep(pattern = "matchScore", colnames(TFBSdata.training))
+      TFBSdata.training <- TFBSdata.training[, colnames(TFBSdata.training)[torm] := NULL]
+    } else {}
+    if (length(grep(pattern = "TF", colnames(TFBSdata.training))) > 0){
+      torm <- grep(pattern = "TF", colnames(TFBSdata.training))
+      TFBSdata.training <- TFBSdata.training[, colnames(TFBSdata.training)[torm] := NULL]
+    } else {}
+    if (length(grep(pattern = "ClosestTSS", colnames(TFBSdata.training))) > 0){
+      torm <- grep(pattern = "ClosestTSS", colnames(TFBSdata.training))
+      TFBSdata.training <- TFBSdata.training[, colnames(TFBSdata.training)[torm] := NULL]
+    } else {}
+    if (length(grep(pattern = "ClosestTTS", colnames(TFBSdata.training))) > 0){
+      torm <- grep(pattern = "ClosestTTS", colnames(TFBSdata.training))
+      TFBSdata.training <- TFBSdata.training[, colnames(TFBSdata.training)[torm] := NULL]
+    } else {}
+    ## Remove the infinite p-values associated to P-M,
+    ## that occurs when the PWM is not flexible (i.e. is a consensus)
+    TFBSdata.training$matchLogPval[which(is.infinite(TFBSdata.training$matchLogPval))] <- max(TFBSdata$matchLogPval)
+    ##Create dummy variables
+    dummy <- stats::model.matrix(~.+0, data = TFBSdata.training[,-c("ChIP.peak"),with=F])
+    TFBSdata.training <- cbind(dummy, TFBSdata.training[,"ChIP.peak"])
+    ##Remove highly correlated features
+    descrCor <- stats::cor(TFBSdata.training, use = 'complete')
+    highlyCorDescr <- caret::findCorrelation(descrCor, cutoff = .95)
+    filteredDescr <- TFBSdata.training[,colnames(TFBSdata.training)[highlyCorDescr] := NULL]
+    NAs <- is.na(as.data.frame(filteredDescr))
+    NAs <- apply(NAs, 1, function(x) {if (length(which(x==TRUE)) > 0 ) {return(TRUE)} else {return(FALSE)} })
+    train <- filteredDescr[!NAs,]
+    #Pre-processing of the validation dataset
+    ##Remove columns that do not have to be taken into account
+    if (length(grep(pattern = "TF", colnames(TFBSdata.validation))) > 0){
+      torm <- grep(pattern = "TF", colnames(TFBSdata.validation))
+       TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
+     } else {}
+    if (length(grep(pattern = "TSS", colnames(TFBSdata.validation))) > 0){
+      torm <- grep(pattern = "TSS", colnames(TFBSdata.validation))
+      TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
+    } else {}
+    if (length(grep(pattern = "TTS", colnames(TFBSdata.validation))) > 0){
+      torm <- grep(pattern = "TTS", colnames(TFBSdata.validation))
+      TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
+    } else {}
+    ## Remove the infinite p-values associated to P-M,
+    ## that occurs when the PWM is not flexible (i.e. is a consensus)
+    TFBSdata.validation$matchLogPval[which(is.infinite(TFBSdata.validation$matchLogPval))] <- max(TFBSdata$matchLogPval)
+    #Create dummy variables
+    dummy <- stats::model.matrix(~.+0, data = TFBSdata.validation[,-c("ChIP.peak"),with=F])
+    TFBSdata.validation <- cbind(dummy, TFBSdata.validation[,"ChIP.peak"])
+    ##Remove highly correlated features
+    descrCor <- stats::cor(TFBSdata.validation, use = 'complete')
+    highlyCorDescr <- caret::findCorrelation(descrCor, cutoff = .95)
+    filteredDescr <- TFBSdata.validation[,colnames(TFBSdata.validation)[highlyCorDescr] := NULL]
+    NAs <- is.na(as.data.frame(filteredDescr))
+    NAs <- apply(NAs, 1, function(x) {if (length(which(x==TRUE)) > 0 ) {return(TRUE)} else {return(FALSE)} })
+    test <- filteredDescr[!NAs,]
+  
+    train <- train[,which(colnames(train) %in% colnames(test)), with = FALSE]
+    test <- test[,which(colnames(test) %in% colnames(train)), with = FALSE]
   }
-  TFBSdata.training <- TFBSdata[trainind,]
-  TFBSdata.validation <- TFBSdata[testind,]
-  #Pre-processing of the training dataset
-  ##Remove columns that do not have to be taken into account
-  if (length(grep(pattern = "matchScore", colnames(TFBSdata.training))) > 0){
-    torm <- grep(pattern = "matchScore", colnames(TFBSdata.training))
-    TFBSdata.training <- TFBSdata.training[, colnames(TFBSdata.training)[torm] := NULL]
-  } else {}
-  if (length(grep(pattern = "TF", colnames(TFBSdata.training))) > 0){
-    torm <- grep(pattern = "TF", colnames(TFBSdata.training))
-    TFBSdata.training <- TFBSdata.training[, colnames(TFBSdata.training)[torm] := NULL]
-  } else {}
-  if (length(grep(pattern = "ClosestTSS", colnames(TFBSdata.training))) > 0){
-    torm <- grep(pattern = "ClosestTSS", colnames(TFBSdata.training))
-    TFBSdata.training <- TFBSdata.training[, colnames(TFBSdata.training)[torm] := NULL]
-  } else {}
-  if (length(grep(pattern = "ClosestTTS", colnames(TFBSdata.training))) > 0){
-    torm <- grep(pattern = "ClosestTTS", colnames(TFBSdata.training))
-    TFBSdata.training <- TFBSdata.training[, colnames(TFBSdata.training)[torm] := NULL]
-  } else {}
-  ## Remove the infinite p-values associated to P-M,
-  ## that occurs when the PWM is not flexible (i.e. is a consensus)
-  TFBSdata.training$matchLogPval[which(is.infinite(TFBSdata.training$matchLogPval))] <- max(TFBSdata$matchLogPval)
-  ##Create dummy variables
-  dummy <- stats::model.matrix(~.+0, data = TFBSdata.training[,-c("ChIP.peak"),with=F])
-  TFBSdata.training <- cbind(dummy, TFBSdata.training[,"ChIP.peak"])
-  ##Remove highly correlated features
-  descrCor <- stats::cor(TFBSdata.training, use = 'complete')
-  highlyCorDescr <- caret::findCorrelation(descrCor, cutoff = .95)
-  filteredDescr <- TFBSdata.training[,colnames(TFBSdata.training)[highlyCorDescr] := NULL]
-  NAs <- is.na(as.data.frame(filteredDescr))
-  NAs <- apply(NAs, 1, function(x) {if (length(which(x==TRUE)) > 0 ) {return(TRUE)} else {return(FALSE)} })
-  train <- filteredDescr[!NAs,]
-  #Pre-processing of the validation dataset
-  ##Remove columns that do not have to be taken into account
-  if (length(grep(pattern = "TF", colnames(TFBSdata.validation))) > 0){
-    torm <- grep(pattern = "TF", colnames(TFBSdata.validation))
-     TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
-   } else {}
-  if (length(grep(pattern = "TSS", colnames(TFBSdata.validation))) > 0){
-    torm <- grep(pattern = "TSS", colnames(TFBSdata.validation))
-    TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
-  } else {}
-  if (length(grep(pattern = "TTS", colnames(TFBSdata.validation))) > 0){
-    torm <- grep(pattern = "TTS", colnames(TFBSdata.validation))
-    TFBSdata.validation <- TFBSdata.validation[, colnames(TFBSdata.validation)[torm] := NULL]
-  } else {}
-  ## Remove the infinite p-values associated to P-M,
-  ## that occurs when the PWM is not flexible (i.e. is a consensus)
-  TFBSdata.validation$matchLogPval[which(is.infinite(TFBSdata.validation$matchLogPval))] <- max(TFBSdata$matchLogPval)
-  #Create dummy variables
-  dummy <- stats::model.matrix(~.+0, data = TFBSdata.validation[,-c("ChIP.peak"),with=F])
-  TFBSdata.validation <- cbind(dummy, TFBSdata.validation[,"ChIP.peak"])
-  ##Remove highly correlated features
-  descrCor <- stats::cor(TFBSdata.validation, use = 'complete')
-  highlyCorDescr <- caret::findCorrelation(descrCor, cutoff = .95)
-  filteredDescr <- TFBSdata.validation[,colnames(TFBSdata.validation)[highlyCorDescr] := NULL]
-  NAs <- is.na(as.data.frame(filteredDescr))
-  NAs <- apply(NAs, 1, function(x) {if (length(which(x==TRUE)) > 0 ) {return(TRUE)} else {return(FALSE)} })
-  test <- filteredDescr[!NAs,]
-
-  train <- train[,which(colnames(train) %in% colnames(test)), with = FALSE]
-  test <- test[,which(colnames(test) %in% colnames(train)), with = FALSE]
   #Build a model by extreme gradient boosting
   labels <- train$ChIP.peak
   ts_label <- test$ChIP.peak
