@@ -443,7 +443,7 @@ getTFBSdata <- function(pfm = NULL,
 #' @param TFBSdata A named character vector as output by the [getTFBSdata()] function, defining the local paths
 #' to files encoding for the results of pattern-matching and geonmic feature extraction for the training TFs and/or
 #' studied TFs. Alternatively, it can be a list of 2 GRanges objects, as outp by `buildTFBSmode` with the option
-#' \code{xgb_modeling = FALSE}. The fist object represents the training dataset, the second, the validation one.
+#' \code{xgb_modeling = FALSE}. The fist object represents the training dataset, the second, the validation.
 #' @param  ChIPpeaks A named character vector defining the local paths to BED files encoding the
 #' location of ChIP-peaks. The vector is named according to the training transcription factors
 #' that are described by the files indicated. **Caution**: the names of the \code{ChIPpeaks} have to find
@@ -496,10 +496,11 @@ buildTFBSmodel <- function(TFBSdata,
   ChIP_regions <- listChIPRegions(ChIPpeaks, NULL, ChIPpeaks_length)
   DataSet <- data.frame()
   if (length(names(ChIPpeaks))==0 &length(TFBSdata) == 1) {names(ChIPpeaks) == names(TFBSdata)}
-  if(is.list(TFBSdata)){
+  if (is.list(TFBSdata)) {
     train <- TFBSdata[[1]]
     test <- TFBSdata[[2]]
-    
+    TFBSdata.validation <- NULL
+    TFBSdata.training <- NULL
   } else {
     for (trainingTF in names(ChIPpeaks)){
        considered <- data.table::fread(TFBSdata[trainingTF],
@@ -591,6 +592,10 @@ buildTFBSmodel <- function(TFBSdata,
   
     train <- train[,which(colnames(train) %in% colnames(test)), with = FALSE]
     test <- test[,which(colnames(test) %in% colnames(train)), with = FALSE]
+    rm(filteredDescr)
+    rm(descrCor)
+    rm(highlyCorDescr)
+    rm(NAs)
   }
   #Build a model by extreme gradient boosting
   labels <- train$ChIP.peak
@@ -601,12 +606,8 @@ buildTFBSmodel <- function(TFBSdata,
 
   if (xgb_modeling == TRUE) {
     rm(train)
-    rm(filteredDescr)
-    rm(descrCor)
-    rm(highlyCorDescr)
     rm(TFBSdata.validation)
     rm(TFBSdata.training)
-    rm(NAs)
     dtrain <- xgboost::xgb.DMatrix(data = new_tr,label = labels)
     dtest <- xgboost::xgb.DMatrix(data = new_ts,label=ts_label)
 
