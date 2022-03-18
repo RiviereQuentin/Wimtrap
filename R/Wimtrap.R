@@ -2340,6 +2340,7 @@ getCandidatesRegions <- function(directInput_matches,
       names(Pwm) <- names(Matches)
     } else {
       Matches <- list(directInput_matches)
+      names(Matches) <- "TF"
       Pwm <- names(Matches)
       names(Pwm) <- names(Matches)
     }
