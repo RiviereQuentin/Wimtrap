@@ -442,8 +442,9 @@ getTFBSdata <- function(pfm = NULL,
 #' (i.e. ChIP-seq 'validated' or 'not-validated' in a given condition).
 #' @param TFBSdata A named character vector as output by the [getTFBSdata()] function, defining the local paths
 #' to files encoding for the results of pattern-matching and geonmic feature extraction for the training TFs and/or
-#' studied TFs. Alternatively, it can be a list of 2 GRanges objects, as outp by `buildTFBSmode` with the option
-#' \code{xgb_modeling = FALSE}. The fist object represents the training dataset, the second, the validation.
+#' studied TFs. Alternatively, it can be a list of 2 data.table objects, as output by `buildTFBSmode` with the option
+#' \code{xgb_modeling = FALSE}. The fist object represents the training dataset, the second, the validation. It can
+#' be also a GRanges object, as output with the option \code{balancing_only = TRUE}.
 #' @param  ChIPpeaks A named character vector defining the local paths to BED files encoding the
 #' location of ChIP-peaks. The vector is named according to the training transcription factors
 #' that are described by the files indicated. **Caution**: the names of the \code{ChIPpeaks} have to find
@@ -460,6 +461,8 @@ getTFBSdata <- function(pfm = NULL,
 #' output. If \code{FALSE}, only the steps of balancing, labelling and splitting between a training and a validation
 #' datasets will be carried on and the output will be a list of two `data.table` corresponding to the training and validation
 #' datasets.
+#' @param balancing_only If \code{TRUE}, only the balancing and labelling are achieved and a GRanges object is output.
+#' Default is set to \code{FALSE}.
 #' @return An object of \code{xgb.Booster} class if \code{xgb_modeling = TRUE}. A list of two `data.table` corresponding
 #' each to the training and validation datasets otherwise.
 #' @seealso [getTFBSdata()] for obtaining the datasets and [predictTFBS()] to predict transcription factor
@@ -492,7 +495,8 @@ buildTFBSmodel <- function(TFBSdata,
                            ChIPpeaks_length = 400,
                            TFs_validation = NULL,
                            model_assessment = TRUE,
-                           xgb_modeling = TRUE){
+                           xgb_modeling = TRUE,
+                           balancing_only = FALSE){
   DataSet <- data.frame()
   if (length(names(ChIPpeaks))==0 &length(TFBSdata) == 1) {names(ChIPpeaks) == names(TFBSdata)}
   if (is.list(TFBSdata)) {
@@ -501,25 +505,30 @@ buildTFBSmodel <- function(TFBSdata,
     TFBSdata.validation <- NULL
     TFBSdata.training <- NULL
   } else {
-    ChIP_regions <- listChIPRegions(ChIPpeaks, NULL, ChIPpeaks_length)
-    for (trainingTF in names(ChIPpeaks)){
-       considered <- data.table::fread(TFBSdata[trainingTF],
-                                       stringsAsFactors = TRUE)
-       considered$TF <- trainingTF
-       considered <- GenomicRanges::makeGRangesFromDataFrame(considered,
-                                                             keep.extra.columns = TRUE)
-       validated_TFBS <- GenomicRanges::findOverlaps(considered, ChIP_regions[[trainingTF]], select = "all")
-       considered <- as.data.frame(considered)
-       considered$ChIP.peak <- 0
-       considered$ChIP.peak[validated_TFBS@from[!duplicated(validated_TFBS@from)]] <- 1
-       NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
-       DataSet <- rbind(DataSet,
-                        considered[considered$ChIP.peak == 1,],
-                        considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
-       rm(considered)
+    if (class(TFBSdata) == "GRanges") {
+      DataSet <- data.table::as.data.table(TFBSdata)
+    } else {
+      ChIP_regions <- listChIPRegions(ChIPpeaks, NULL, ChIPpeaks_length)
+      for (trainingTF in names(ChIPpeaks)){
+         considered <- data.table::fread(TFBSdata[trainingTF],
+                                         stringsAsFactors = TRUE)
+         considered$TF <- trainingTF
+         considered <- GenomicRanges::makeGRangesFromDataFrame(considered,
+                                                               keep.extra.columns = TRUE)
+         validated_TFBS <- GenomicRanges::findOverlaps(considered, ChIP_regions[[trainingTF]], select = "all")
+         considered <- as.data.frame(considered)
+         considered$ChIP.peak <- 0
+         considered$ChIP.peak[validated_TFBS@from[!duplicated(validated_TFBS@from)]] <- 1
+         NbTrueBs <- nrow(considered[considered$ChIP.peak == 1,])
+         DataSet <- rbind(DataSet,
+                          considered[considered$ChIP.peak == 1,],
+                          considered[sample(which(considered$ChIP.peak == 0), NbTrueBs),])
+         rm(considered)
+      }
+      DataSet <- data.table::as.data.table(DataSet)
     }
-    DataSet <- data.table::as.data.table(DataSet)
     TFBSdata <- DataSet[,-seq(1,5), with = FALSE]
+    if (balancing_only) {return(GenomicRanges::makeGRangesFromDataFrame(as.data.frame(DataSet), keep.extra.columns = TRUE))}
     rm(DataSet)
     #Split the dataset into a training and a validation datasets
     if(is.null(TFs_validation)){
