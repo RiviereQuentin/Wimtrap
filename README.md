@@ -38,6 +38,11 @@ In some cases, we also noticed that it might be necessary to install beforehand 
     dependencies = TRUE,                     
     build_vignettes = TRUE)
 ```
+On linux, it might be also necessary to install as a prerequisite some software. On ubuntu, this might be achieved by entering the following in the terminal:
+
+```
+sudo apt install libcurl4-gnutls-dev icu-devtools libicu-dev libxml2-dev bzip2-doc libbz2-dev liblzma-dev
+```
 ## Predictions of transcription factor binding sites in *Arabidopsis thaliana* or *Solanum lycopersicum*
 
 Pre-built models are available for Arabidopsis and the tomato. 

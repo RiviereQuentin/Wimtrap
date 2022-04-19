@@ -968,14 +968,15 @@ plotPredictions <- function(TFBSpredictions,
 #' @importFrom utils download.file unzip
 #' @description
 #' Predicts the location of transcription factor binding sites (=cis-acting regulatory elements) in various conditions
-#' for *Arabidopsis thaliana* and *Solanum lycopersicum*. The function integrates 5 pre-built general models obtained based on a more
+#' for *Arabidopsis thaliana*, *Solanum lycopersicum*, *Oryza sativa* and *Zea mays*. The function integrates 7 pre-built general models obtained based on a more
 #' or less extended set of genomic data and trained from different organisms/conditions. These models almost all integrate the degree of opening
 #' of the chromating (DHS: DNAseI hypersensitive sites) and results of digital genomic footprinting (DGF: digital genomic footprints) in
 #' the conditions that can be studied using \code{carepat}. These represent genomic data with high potenital of prodectivity (see details).
-#' @param organism "Arabidopsis thaliana" or "Solanum lycopersicum"
+#' @param organism "Arabidopsis thaliana", "Solanum lycopersicum", "Oryza sativa" or "Zea mays"
 #' @param condition Character indicating the studied condition. For *Arabidopsis thaliana*: "seedlings", "flowers", "roots",
 #' "roots_non_hairs","seed_coats", "seedlings_dark7d", "seedlings_dark7dLD24h","seedlings_dark7dlight3h",
-#'  "seedlings_dark7dlight30min" or "seedlings_heatshock"". For *Solanum lycopersicum*: "ripening_fruits" or "immaturefruits".
+#'  "seedlings_dark7dlight30min" or "seedlings_heatshock"". For *Solanum lycopersicum*: "ripening_fruits" or "immaturefruits". 
+#'  For *Oryza sativa*, "seedlings" or "roots". For *Zea mays*: "seedlings".
 #' @param TFnames Character vector setting the name(s) of the studied transcription factors. These names have to follow the
 #' AGI (Arabidopsis)/Solyc (Tomato) nomenclature to allow the retrieval of the motis from [PlantTFDB](http://planttfdb.gao-lab.org/)
 #' database.Otherwise, if you input the motifs from a local file through \code{pfm}, these names have to be among those described in that file.
@@ -1005,8 +1006,11 @@ plotPredictions <- function(TFBSpredictions,
 #' | *Arabidopsis thaliana* | dark-grown seedlings exposed to 3h of light ("seedlings_dark7d3h") | whole seedlings ("seedlings") | Layers 1, 2, 3, 4 + DHS
 #' | *Arabidopsis thaliana* | dark-grown seedlings exposed to a long day cycle ("seedlings_dark7dLD24h") | whole seedlings ("seedlings") | Layers 1, 2, 3, 4 + DHS
 #' | *Solanum lycopersicum* | ripening fruits ("ripening_fruits") | ripening fruits ("ripening_fruits") | Layers 1, 2, 3, 4 + DHS, Cme, H3K27me3
-#' | *Solanum lycopersicum* | immature fruits ("ripening_fruits") | ripening fruits ("ripening_fruits") | Layers 1, 2, 3 + DHS, Cme, H3K27me3
-#'
+#' | *Solanum lycopersicum* | immature fruits ("immature_fruits") | ripening fruits ("ripening_fruits") | Layers 1, 2, 3 + DHS, Cme, H3K27me3
+#' | *Oryza sativa* | whole seedlings ("seedlings") | whole seedlings ("seedlings") | Layers 1, 2, 3, 4 + DHS, Cme, H3K36me3, H3K27ac, H3K27me3, H3K4me3, H3K9ac, H4K12ac
+#' | *Oryza sativa* | seedling roots ("roots") | whole seedlings ("seedlings") | Layers 1, 2, 3, 4 + DHS, Cme, H3K36me3, H3K27ac, H3K27me3, H3K4me3, H3K9ac, H4K12ac
+#' | *Zea mays* | whole seedlings ("seedlings") | whole seedlings ("seedlings") | Layers 1, 2, 3, 4 + DHS, Cme
+#' 
 #' The different layers of genomic features are composed of the following:
 #' - **Layer 1**: results of pattern-matching (log10 p-value of the score and local density of matches)
 #' - **Layer 2**: phastcons-scored conserved elements (for Arabidopsis and the tomato) and conserved non-coding sequences
@@ -1032,6 +1036,8 @@ plotPredictions <- function(TFBSpredictions,
 #' with their cognate transcription factor. Additionally, the \code{data.table} describes, for the potential
 #' binding sites, the chromosomic coordinates, the closest transcript (relatively to the transcript start site) and the prediction score.
 #' Optionally, the \code{data.table} might also include the genomic features used to make the predictions.
+#' NB: The chromosomic coordinates are expressed according to the following assemblies: TAIR10 (*Arabidopsis thaliana*),
+#' SL3.0 (*Solanum lycopersicum*), IRGSP-1.0 (*Oryza sativa*) and Zm-B73-REFERENCE-NAM-5.0 (*Zea mays*).
 #' @examples
 #'#Predictions of the binding sites of "AT2G46830" in flowers of Arabidopsis
 #'CCA1predictions.flowers <- carepat(organism = "Arabidopsis thaliana",
@@ -1043,7 +1049,7 @@ plotPredictions <- function(TFBSpredictions,
 #'                                   TFnames = "Solyc00g024680.1")
 #'
 
-carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum"),
+carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum", "Oryza sativa", "Zea mays"),
                     condition = c("seedlings", "flowers", "roots", "roots_non_hairs",
                                   "seed_coats", "seedlings_dark7d", "seedlings_dark7dLD24h",
                                   "seedlings_dark7dlight3h", "seedlings_dark7dlight30min", "seedlings_heatshock",
@@ -1228,6 +1234,63 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum")
     genome_sequence <- Biostrings::readDNAStringSet(paste0(dir.data, paste0("genome_athal_chr", seq(1,5), ".fa.gzip")))
     PWMs.file <- paste0(dir.data, "PWMs_athal.meme")
 
+  } else if (organism == "Oryza sativa"){
+    dir.data <- paste0(package.dir, "/carepat-main/data/Oryza_sativa_Japonica/")
+    if (condition == "seedlings"){
+      genomic_data <- c("CE_osj.bed", "CDS_osj.bed", "Intron_osj.bed", "X5UTR_osj.bed",
+                        "X3UTR_osj.bed", "seedlings/DHS1_osj_seedlings.bed",
+                        "seedlings/DGF1_osj_seedlings.bed", "seedlings/H3K27me3_osj_seedlings.bed",
+                        "seedlings/Methylome_osj_seedlings.bed", "seedlings/H3K4me3_osj_seedlings.bed", "seedlings/H3K9ac_osj_seedlings.bed",
+                        "seedlings/H3K27ac_osj_seedlings.bed", "seedlings/H3K36me3_osj_seedlings.bed", "seedlings/H4K12ac_osj_seedlings.bed",
+                        "seedlings/DHS_osj_seedlings.bed")
+      names(genomic_data) <- c("CE", "CDS", "Intron", "X5UTR", "X3UTR", "DHS", "DGF1", "H3K27me3", "Cme",
+                               "H3K4me3", "H3K9ac", "H3K27ac", "H3K36me3", "H4K12ac", "DHS1"))
+      tmp <- paste0(dir.data, genomic_data)
+      names(tmp) <- names(genomic_data)
+      genomic_data <- tmp
+      TFBSmodel <- paste0(dir.models, "TFBSmodel_osj_seedlings.RData")
+      load(TFBSmodel)
+      TFBSmodel <- model_osa
+    } else if (condition == "roots"){
+      genomic_data <- c("CE_osj.bed", "CDS_osj.bed", "Intron_osj.bed", "X5UTR_osj.bed",
+                        "X3UTR_osj.bed", "roots/TnHS_osj_roots.bed",
+                        "roots/DGF_osj_roots.bed", "roots/H3K27me3_osj_roots.bed",
+                        "roots/Methylome_osj_roots.bed", "roots/H3K4me3_osj_roots.bed", "roots/H3K9ac_osj_roots.bed",
+                        "roots/H3K27ac_osj_roots.bed", "roots/H3K36me3_osj_roots.bed", "roots/H4K12ac_osj_roots.bed")
+      names(genomic_data) <- c("CE", "CDS", "Intron", "X5UTR", "X3UTR", "DHS", "DGF", "H3K27me3", "Cme",
+                               "H3K4me3", "H3K9ac", "H3K27ac", "H3K36me3", "H4K12ac"))
+      tmp <- paste0(dir.data, genomic_data)
+      names(tmp) <- names(genomic_data)
+      genomic_data <- tmp
+      TFBSmodel <- paste0(dir.models, "TFBSmodel_osj_roots.RData")
+      load(TFBSmodel)
+      TFBSmodel <- model_osa
+    }
+    
+    imported_genomic_data <- Wimtrap::importGenomicData(genomic_data = genomic_data,
+                                                        tts = paste0(dir.data, "TTS_osj.bed"),
+                                                        tss = paste0(dir.data, "TSS_osj.bed"))
+    genome_sequence <- Biostrings::readDNAStringSet(paste0(dir.data, paste0("genome_osj_chr", seq(1, 12),".fa.gz")))
+    PWMs.file <- paste0(dir.data, "PWMs_osj.meme")
+  } else if (organism == "Zea_mays"){
+    dir.data <- paste0(package.dir, "/carepat-main/data/Zea_mays/")
+    if (condition == "seedlings"){
+      genomic_data <- c("CE_zma.bed", "CDS_zma.bed", "Intron_zma.bed", "X5UTR_zma.bed",
+                        "X3UTR_zma.bed", "seedlings/DHS_zma_seedlings.bed",
+                        "seedlings/DGF_zma_seedlings.bed","seedlings/Methylome_zma_seedlings.bed")
+      names(genomic_data) <- c("phastcons", "CDS", "Intron", "X5UTR", "X3UTR", "DHS", "DGF", "Methylome"))
+      tmp <- paste0(dir.data, genomic_data)
+      names(tmp) <- names(genomic_data)
+      genomic_data <- tmp
+      TFBSmodel <- paste0(dir.models, "TFBSmodel_zma_seedlings.RData")
+      load(TFBSmodel)
+      TFBSmodel <- model_zma
+    } 
+    imported_genomic_data <- Wimtrap::importGenomicData(genomic_data = genomic_data,
+                                                        tts = paste0(dir.data, "TTS_zma.bed"),
+                                                        tss = paste0(dir.data, "TSS_zma.bed"))
+    genome_sequence <- Biostrings::readDNAStringSet(paste0(dir.data, paste0("genome_zma_chr", seq(1, 11),".fa.gz")))
+    PWMs.file <- paste0(dir.data, "PWMs_zma.meme")
   }
 
   if(length(pfm) == 1){
