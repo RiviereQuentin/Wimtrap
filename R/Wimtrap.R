@@ -1253,18 +1253,17 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum",
       TFBSmodel <- model_osa
     } else if (condition == "roots"){
       genomic_data <- c("CE_osj.bed", "CDS_osj.bed", "Intron_osj.bed", "X5UTR_osj.bed",
-                        "X3UTR_osj.bed", "roots/TnHS_osj_roots.bed",
-                        "roots/DGF_osj_roots.bed", "roots/H3K27me3_osj_roots.bed",
-                        "roots/Methylome_osj_roots.bed", "roots/H3K4me3_osj_roots.bed", "roots/H3K9ac_osj_roots.bed",
-                        "roots/H3K27ac_osj_roots.bed", "roots/H3K36me3_osj_roots.bed", "roots/H4K12ac_osj_roots.bed")
-      names(genomic_data) <- c("CE", "CDS", "Intron", "X5UTR", "X3UTR", "DHS", "DGF", "H3K27me3", "Cme",
-                               "H3K4me3", "H3K9ac", "H3K27ac", "H3K36me3", "H4K12ac"))
+                        "X3UTR_osj.bed", paste0( "roots/", c("TnHS", "H3K36me3", "H3K27ac", "H3K27me3",
+                                                             "H3K4me3", "H3K9ac", "H4K12ac", "Methylome"), "_osj_roots.bed")
+      )
+      names(genomic_data) <- c("CE", "CDS", "Intron", "X5UTR", "X3UTR", "TnHS", "H3K36me3", "H3K27ac", "H3K27me3",
+                               "H3K4me3", "H3K9ac", "H4K12ac", "Cme")
       tmp <- paste0(dir.data, genomic_data)
       names(tmp) <- names(genomic_data)
       genomic_data <- tmp
       TFBSmodel <- paste0(dir.models, "TFBSmodel_osj_roots.RData")
       load(TFBSmodel)
-      TFBSmodel <- model_osa
+      TFBSmodel <- TFBSmodel_osj_roots
     }
     
     imported_genomic_data <- Wimtrap::importGenomicData(genomic_data = genomic_data,
