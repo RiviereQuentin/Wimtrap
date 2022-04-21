@@ -2,10 +2,11 @@
 % Please edit documentation in R/Wimtrap.R
 \name{carepat}
 \alias{carepat}
-\title{Cis-acting regulatory element predictions for Arabidopsis and tomato}
+\title{Cis-acting regulatory element predictions for Arabidopsis, tomato, rice and maize}
 \usage{
 carepat(
-  organism = c("Arabidopsis thaliana", "Solanum lycopersicum"),
+  organism = c("Arabidopsis thaliana", "Solanum lycopersicum", "Oryza sativa",
+    "Zea mays"),
   condition = c("seedlings", "flowers", "roots", "roots_non_hairs", "seed_coats",
     "seedlings_dark7d", "seedlings_dark7dLD24h", "seedlings_dark7dlight3h",
     "seedlings_dark7dlight30min", "seedlings_heatshock", "ripening_fruits",
@@ -17,11 +18,12 @@ carepat(
 )
 }
 \arguments{
-\item{organism}{"Arabidopsis thaliana" or "Solanum lycopersicum"}
+\item{organism}{"Arabidopsis thaliana", "Solanum lycopersicum", "Oryza sativa" or "Zea mays"}
 
 \item{condition}{Character indicating the studied condition. For \emph{Arabidopsis thaliana}: "seedlings", "flowers", "roots",
 "roots_non_hairs","seed_coats", "seedlings_dark7d", "seedlings_dark7dLD24h","seedlings_dark7dlight3h",
-"seedlings_dark7dlight30min" or "seedlings_heatshock"". For \emph{Solanum lycopersicum}: "ripening_fruits" or "immaturefruits".}
+"seedlings_dark7dlight30min" or "seedlings_heatshock"". For \emph{Solanum lycopersicum}: "ripening_fruits" or "immaturefruits".
+For \emph{Oryza sativa}, "seedlings" or "roots". For \emph{Zea mays}: "seedlings".}
 
 \item{TFnames}{Character vector setting the name(s) of the studied transcription factors. These names have to follow the
 AGI (Arabidopsis)/Solyc (Tomato) nomenclature to allow the retrieval of the motis from \href{http://planttfdb.gao-lab.org/}{PlantTFDB}
@@ -45,10 +47,12 @@ A \code{data.table} listing the predicted binding sites. The '\code{TF}' column 
 with their cognate transcription factor. Additionally, the \code{data.table} describes, for the potential
 binding sites, the chromosomic coordinates, the closest transcript (relatively to the transcript start site) and the prediction score.
 Optionally, the \code{data.table} might also include the genomic features used to make the predictions.
+NB: The chromosomic coordinates are expressed according to the following assemblies: TAIR10 (\emph{Arabidopsis thaliana}),
+SL3.0 (\emph{Solanum lycopersicum}), IRGSP-1.0 (\emph{Oryza sativa}) and Zm-B73-REFERENCE-NAM-5.0 (\emph{Zea mays}).
 }
 \description{
 Predicts the location of transcription factor binding sites (=cis-acting regulatory elements) in various conditions
-for \emph{Arabidopsis thaliana} and \emph{Solanum lycopersicum}. The function integrates 5 pre-built general models obtained based on a more
+for \emph{Arabidopsis thaliana}, \emph{Solanum lycopersicum}, \emph{Oryza sativa} and \emph{Zea mays}. The function integrates 7 pre-built general models obtained based on a more
 or less extended set of genomic data and trained from different organisms/conditions. These models almost all integrate the degree of opening
 of the chromating (DHS: DNAseI hypersensitive sites) and results of digital genomic footprinting (DGF: digital genomic footprints) in
 the conditions that can be studied using \code{carepat}. These represent genomic data with high potenital of prodectivity (see details).
@@ -68,7 +72,10 @@ that is considered: from which training organism-condition it has been obtained 
    \emph{Arabidopsis thaliana} \tab dark-grown seedlings exposed to 3h of light ("seedlings_dark7d3h") \tab whole seedlings ("seedlings") \tab Layers 1, 2, 3, 4 + DHS \cr
    \emph{Arabidopsis thaliana} \tab dark-grown seedlings exposed to a long day cycle ("seedlings_dark7dLD24h") \tab whole seedlings ("seedlings") \tab Layers 1, 2, 3, 4 + DHS \cr
    \emph{Solanum lycopersicum} \tab ripening fruits ("ripening_fruits") \tab ripening fruits ("ripening_fruits") \tab Layers 1, 2, 3, 4 + DHS, Cme, H3K27me3 \cr
-   \emph{Solanum lycopersicum} \tab immature fruits ("ripening_fruits") \tab ripening fruits ("ripening_fruits") \tab Layers 1, 2, 3 + DHS, Cme, H3K27me3 \cr
+   \emph{Solanum lycopersicum} \tab immature fruits ("immature_fruits") \tab ripening fruits ("ripening_fruits") \tab Layers 1, 2, 3 + DHS, Cme, H3K27me3 \cr
+   \emph{Oryza sativa} \tab whole seedlings ("seedlings") \tab whole seedlings ("seedlings") \tab Layers 1, 2, 3, 4 + DHS, Cme, H3K36me3, H3K27ac, H3K27me3, H3K4me3, H3K9ac, H4K12ac \cr
+   \emph{Oryza sativa} \tab seedling roots ("roots") \tab whole seedlings ("seedlings") \tab Layers 1, 2, 3, 4 + DHS, Cme, H3K36me3, H3K27ac, H3K27me3, H3K4me3, H3K9ac, H4K12ac \cr
+   \emph{Zea mays} \tab whole seedlings ("seedlings") \tab whole seedlings ("seedlings") \tab Layers 1, 2, 3, 4 + DHS, Cme \cr
 }
 
 

@@ -963,7 +963,7 @@ plotPredictions <- function(TFBSpredictions,
   }
 }
 
-#' Cis-acting regulatory element predictions for Arabidopsis and tomato
+#' Cis-acting regulatory element predictions for Arabidopsis, tomato, rice and maize
 #' @export
 #' @importFrom utils download.file unzip
 #' @description

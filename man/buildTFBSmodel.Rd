@@ -10,13 +10,16 @@ buildTFBSmodel(
   ChIPpeaks_length = 400,
   TFs_validation = NULL,
   model_assessment = TRUE,
-  xgb_modeling = TRUE
+  xgb_modeling = TRUE,
+  balancing_only = FALSE
 )
 }
 \arguments{
 \item{TFBSdata}{A named character vector as output by the \code{\link[=getTFBSdata]{getTFBSdata()}} function, defining the local paths
 to files encoding for the results of pattern-matching and geonmic feature extraction for the training TFs and/or
-studied TFs.}
+studied TFs. Alternatively, it can be a list of 2 data.table objects, as output by \code{buildTFBSmode} with the option
+\code{xgb_modeling = FALSE}. The fist object represents the training dataset, the second, the validation. It can
+be also a GRanges object, as output with the option \code{balancing_only = TRUE}.}
 
 \item{ChIPpeaks}{A named character vector defining the local paths to BED files encoding the
 location of ChIP-peaks. The vector is named according to the training transcription factors
@@ -38,6 +41,9 @@ trained using the remaining training TFs.}
 output. If \code{FALSE}, only the steps of balancing, labelling and splitting between a training and a validation
 datasets will be carried on and the output will be a list of two \code{data.table} corresponding to the training and validation
 datasets.}
+
+\item{balancing_only}{If \code{TRUE}, only the balancing and labelling are achieved and a GRanges object is output.
+Default is set to \code{FALSE}.}
 }
 \value{
 An object of \code{xgb.Booster} class if \code{xgb_modeling = TRUE}. A list of two \code{data.table} corresponding
