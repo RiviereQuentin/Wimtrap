@@ -6,6 +6,8 @@ Wimtrap: Integrative tools to predict the location of transcription factor bindi
 
 Wimtrap is an R package that requires the last version of R (R 4.0.4), BiocManager and remotes to be installed. 
 
+*Important: the installation of Wimtrap might take up to 1h if all the packages on which it depends needs also to be installed.*
+
 In R, type the following lines:
 ```
     if(!require("remotes", quietly = TRUE)){  
