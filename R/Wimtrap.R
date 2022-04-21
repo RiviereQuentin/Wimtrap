@@ -1238,19 +1238,17 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum",
     dir.data <- paste0(package.dir, "/carepat-main/data/Oryza_sativa_Japonica/")
     if (condition == "seedlings"){
       genomic_data <- c("CE_osj.bed", "CDS_osj.bed", "Intron_osj.bed", "X5UTR_osj.bed",
-                        "X3UTR_osj.bed", "seedlings/DHS1_osj_seedlings.bed",
-                        "seedlings/DGF1_osj_seedlings.bed", "seedlings/H3K27me3_osj_seedlings.bed",
-                        "seedlings/Methylome_osj_seedlings.bed", "seedlings/H3K4me3_osj_seedlings.bed", "seedlings/H3K9ac_osj_seedlings.bed",
-                        "seedlings/H3K27ac_osj_seedlings.bed", "seedlings/H3K36me3_osj_seedlings.bed", "seedlings/H4K12ac_osj_seedlings.bed",
-                        "seedlings/DHS_osj_seedlings.bed")
-      names(genomic_data) <- c("CE", "CDS", "Intron", "X5UTR", "X3UTR", "DHS", "DGF1", "H3K27me3", "Cme",
-                               "H3K4me3", "H3K9ac", "H3K27ac", "H3K36me3", "H4K12ac", "DHS1")
+                        "X3UTR_osj.bed", paste0( "seedlings/", c("DGF1", "DHS2", "DHS1", "H3K36me3", "H3K27ac", "H3K27me3",
+                                                                 "H3K4me3", "H3K9ac", "H4K12ac", "Methylome"), "_osj_seedlings.bed")
+      )
+      names(genomic_data) <- c("CE", "CDS", "Intron", "X5UTR", "X3UTR", "DGF1", "DHS2", "DHS1", "H3K36me3", "H3K27ac", "H3K27me3",
+                               "H3K4me3", "H3K9ac", "H4K12ac", "Cme")
       tmp <- paste0(dir.data, genomic_data)
       names(tmp) <- names(genomic_data)
       genomic_data <- tmp
       TFBSmodel <- paste0(dir.models, "TFBSmodel_osj_seedlings.RData")
       load(TFBSmodel)
-      TFBSmodel <- model_osa
+      TFBSmodel <- TFBSmodel_osj_seedlings
     } else if (condition == "roots"){
       genomic_data <- c("CE_osj.bed", "CDS_osj.bed", "Intron_osj.bed", "X5UTR_osj.bed",
                         "X3UTR_osj.bed", paste0( "roots/", c("TnHS", "H3K36me3", "H3K27ac", "H3K27me3",
@@ -1271,7 +1269,7 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum",
                                                         tss = paste0(dir.data, "TSS_osj.bed"))
     genome_sequence <- Biostrings::readDNAStringSet(paste0(dir.data, paste0("genome_osj_chr", seq(1, 12),".fa.gz")))
     PWMs.file <- paste0(dir.data, "PWMs_osj.meme")
-  } else if (organism == "Zea_mays"){
+  } else if (organism == "Zea mays"){
     dir.data <- paste0(package.dir, "/carepat-main/data/Zea_mays/")
     if (condition == "seedlings"){
       genomic_data <- c("CE_zma.bed", "CDS_zma.bed", "Intron_zma.bed", "X5UTR_zma.bed",
