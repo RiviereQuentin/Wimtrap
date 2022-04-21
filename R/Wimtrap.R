@@ -1277,7 +1277,7 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum",
       genomic_data <- c("CE_zma.bed", "CDS_zma.bed", "Intron_zma.bed", "X5UTR_zma.bed",
                         "X3UTR_zma.bed", "seedlings/DHS_zma_seedlings.bed",
                         "seedlings/DGF_zma_seedlings.bed","seedlings/Methylome_zma_seedlings.bed")
-      names(genomic_data) <- c("phastcons", "CDS", "Intron", "X5UTR", "X3UTR", "DHS", "DGF", "Methylome"))
+      names(genomic_data) <- c("phastcons", "CDS", "Intron", "X5UTR", "X3UTR", "DHS", "DGF", "Methylome")
       tmp <- paste0(dir.data, genomic_data)
       names(tmp) <- names(genomic_data)
       genomic_data <- tmp
