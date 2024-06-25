@@ -1064,6 +1064,7 @@ carepat <- function(organism = c("Arabidopsis thaliana", "Solanum lycopersicum",
   package.dir <- system.file(package = "Wimtrap")
   test.file = paste0(package.dir, "/carepat-main/data/Arabidopsis_thaliana/PWMs_athal.meme")
   if (!file.exists(test.file)){
+    options(timeout=600)
     message("Downloading data and models - needs to be done once")
     utils::download.file(url = "https://github.com/RiviereQuentin/carepat/archive/main.zip",
                          destfile = paste0(package.dir, "/carepat.zip" ),
